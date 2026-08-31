@@ -106,7 +106,7 @@ fun AvailabilityScreen(vm: AppViewModel, onBack: () -> Unit, onVacancy: (TrainCl
     Scaffold(topBar = { RailTopBar(train.name, onBack) }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).padding(16.dp)) {
             Text("${train.number}  •  ${train.fromCode} → ${train.toCode}  •  ${vm.journeyDate}", color = Color.Gray, fontSize = 13.sp)
-            Text("Live seat availability (RailKit)", color = Color.Gray, fontSize = 12.sp)
+            Text("Live seat availability (RailRadar)", color = Color.Gray, fontSize = 12.sp)
             Spacer(Modifier.height(12.dp))
             if (vm.availLoading) CircularProgressIndicator(color = Orange)
             vm.availError?.let { Text(it, color = Color.Red, fontSize = 13.sp) }
@@ -157,7 +157,7 @@ fun VacancyChartScreen(vm: AppViewModel, onBack: () -> Unit, onBook: () -> Unit)
             Spacer(Modifier.height(12.dp))
             OrangeButton("CONTINUE TO BOOK") { onBook() }
             Text(
-                "RailKit does not issue IRCTC tickets. Booking here saves a local e-ticket using live fare/availability.",
+                "RailRadar does not issue IRCTC tickets. Booking here saves a local e-ticket using live fare/availability.",
                 color = Color.Gray,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 8.dp)

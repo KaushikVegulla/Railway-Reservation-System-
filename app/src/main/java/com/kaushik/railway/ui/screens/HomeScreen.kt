@@ -99,7 +99,7 @@ fun HomeScreen(
                         vm.searchTrainsLive()
                         onSearch()
                     }
-                    Text("Live data via RailKit", color = Color.Gray, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
+                    Text("Live data via RailRadar", color = Color.Gray, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
                 }
             }
             Spacer(Modifier.height(18.dp))

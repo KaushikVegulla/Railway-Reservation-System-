@@ -4,17 +4,17 @@ Android mobile app inspired by **IRCTC Rail Connect**. Academic / demo project â
 
 Repository: https://github.com/KaushikVegulla/Railway-Reservation-System-
 
-## Live RailKit data
+## Live RailRadar data
 
-The app calls [RailKit](https://railkit.in) for real-time Indian Railways data:
+The app calls [RailRadar](https://railradar.in) (`https://api.railradar.in/v1`) with your `rg_â€¦` key:
 
 - Train search between stations
-- Seat availability + multi-day vacancy chart
+- 14-day seat availability / vacancy chart
 - PNR status
 - Live running status
 - Fare lookup used at booking
 
-**Ticket booking:** RailKit has no IRCTC payment/booking API. The app uses live availability and fare, then saves a **local e-ticket**. Real reserved tickets must still be booked on IRCTC.
+**Ticket booking:** RailRadar has no IRCTC payment API. The app uses live availability and fare, then saves a **local e-ticket**. Real reserved tickets must still be booked on IRCTC.
 
 ## What you can do
 

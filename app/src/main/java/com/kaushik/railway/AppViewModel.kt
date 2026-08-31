@@ -32,7 +32,7 @@ class AppViewModel : ViewModel() {
     var userName by mutableStateOf("Kaushik Vegulla")
 
     var fromCode by mutableStateOf("NDLS")
-    var toCode by mutableStateOf("BCT")
+    var toCode by mutableStateOf("MMCT")
     var journeyDate by mutableStateOf(defaultDate())
     var selectedClass by mutableStateOf("All Classes")
     var selectedQuota by mutableStateOf("GN - General")
@@ -235,7 +235,7 @@ class AppViewModel : ViewModel() {
         fun toApiDate(display: String): String {
             return try {
                 val inFmt = SimpleDateFormat("dd MMM yyyy", Locale.ENGLISH)
-                val outFmt = SimpleDateFormat("dd-MM-yyyy", Locale.ENGLISH)
+                val outFmt = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
                 outFmt.format(inFmt.parse(display)!!)
             } catch (_: Exception) {
                 display

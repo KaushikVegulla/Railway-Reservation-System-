@@ -44,7 +44,7 @@ fun PnrScreen(vm: AppViewModel, onBack: () -> Unit) {
             })
             Spacer(Modifier.height(12.dp))
             OrangeButton("GET LIVE STATUS") { vm.lookupPnr(pnr) }
-            if (vm.pnrLoading) Text("Fetching from RailKit…", color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
+            if (vm.pnrLoading) Text("Fetching from RailRadar…", color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
             vm.pnrError?.let { Text(it, color = Color.Red, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
             vm.pnrResult?.let { b ->
                 Spacer(Modifier.height(16.dp))
