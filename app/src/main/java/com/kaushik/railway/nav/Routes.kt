@@ -7,6 +7,7 @@ object Routes {
     const val Home = "home"
     const val Trains = "trains"
     const val Availability = "availability"
+    const val Vacancy = "vacancy"
     const val Passengers = "passengers"
     const val Review = "review"
     const val Payment = "payment"

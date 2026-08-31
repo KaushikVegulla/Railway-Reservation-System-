@@ -85,7 +85,7 @@ fun HomeScreen(
                     }
                     StationRow("To", vm.toCode) { vm.toCode = it }
                     Spacer(Modifier.height(8.dp))
-                    SimpleSelect("Journey date", vm.journeyDate, listOf(vm.journeyDate, "01 Sep 2026", "05 Sep 2026", "12 Sep 2026")) {
+                    SimpleSelect("Journey date", vm.journeyDate, AppViewModel.upcomingDates()) {
                         vm.journeyDate = it
                     }
                     Spacer(Modifier.height(8.dp))
@@ -95,7 +95,11 @@ fun HomeScreen(
                     Spacer(Modifier.height(8.dp))
                     SimpleSelect("Quota", vm.selectedQuota, MockData.quotas) { vm.selectedQuota = it }
                     Spacer(Modifier.height(16.dp))
-                    OrangeButton("SEARCH TRAINS", onClick = onSearch)
+                    OrangeButton("SEARCH TRAINS") {
+                        vm.searchTrainsLive()
+                        onSearch()
+                    }
+                    Text("Live data via RailKit", color = Color.Gray, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
                 }
             }
             Spacer(Modifier.height(18.dp))

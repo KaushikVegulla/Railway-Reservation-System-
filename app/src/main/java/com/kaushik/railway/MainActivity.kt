@@ -52,6 +52,7 @@ import com.kaushik.railway.ui.screens.RunningStatusScreen
 import com.kaushik.railway.ui.screens.SplashScreen
 import com.kaushik.railway.ui.screens.TicketScreen
 import com.kaushik.railway.ui.screens.TrainListScreen
+import com.kaushik.railway.ui.screens.VacancyChartScreen
 import com.kaushik.railway.ui.theme.RailwayTheme
 
 class MainActivity : ComponentActivity() {
@@ -121,10 +122,13 @@ fun RailApp(vm: AppViewModel = viewModel()) {
                 })
             }
             composable(Routes.Availability) {
-                AvailabilityScreen(vm, onBack = { nav.popBackStack() }, onBook = {
+                AvailabilityScreen(vm, onBack = { nav.popBackStack() }, onVacancy = {
                     vm.selectedTravelClass = it
-                    nav.navigate(Routes.Passengers)
+                    nav.navigate(Routes.Vacancy)
                 })
+            }
+            composable(Routes.Vacancy) {
+                VacancyChartScreen(vm, onBack = { nav.popBackStack() }, onBook = { nav.navigate(Routes.Passengers) })
             }
             composable(Routes.Passengers) {
                 PassengerScreen(vm, onBack = { nav.popBackStack() }, onContinue = { nav.navigate(Routes.Review) })
@@ -138,8 +142,8 @@ fun RailApp(vm: AppViewModel = viewModel()) {
                 })
             }
             composable(Routes.Ticket) { TicketScreen(vm) { nav.navigate(Routes.Home) { popUpTo(Routes.Home) { inclusive = true } } } }
-            composable(Routes.Pnr) { PnrScreen(onBack = { if (!nav.popBackStack()) nav.navigate(Routes.Home) }) }
-            composable(Routes.Running) { RunningStatusScreen(onBack = { nav.popBackStack() }) }
+            composable(Routes.Pnr) { PnrScreen(vm, onBack = { if (!nav.popBackStack()) nav.navigate(Routes.Home) }) }
+            composable(Routes.Running) { RunningStatusScreen(vm, onBack = { nav.popBackStack() }) }
             composable(Routes.Bookings) { BookingsScreen(vm, onBack = { if (!nav.popBackStack()) nav.navigate(Routes.Home) }) }
             composable(Routes.Profile) {
                 ProfileScreen(

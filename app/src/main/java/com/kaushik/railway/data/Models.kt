@@ -19,7 +19,38 @@ data class Train(
     val arrive: String,
     val duration: String,
     val days: String,
-    val classes: List<TrainClassAvail>
+    val fromCode: String = from,
+    val toCode: String = to,
+    val distance: String = "",
+    val classes: List<TrainClassAvail> = emptyList()
+)
+
+data class VacancyDay(
+    val date: String,
+    val status: String,
+    val text: String,
+    val prediction: String,
+    val canBook: Boolean
+)
+
+data class AvailabilityResult(
+    val fare: Int,
+    val status: String,
+    val days: List<VacancyDay>
+)
+
+data class PnrResult(
+    val pnr: String,
+    val trainNo: String,
+    val trainName: String,
+    val fromName: String,
+    val toName: String,
+    val date: String,
+    val travelClass: String,
+    val quota: String,
+    val chart: String,
+    val fare: Int,
+    val passengers: List<String>
 )
 
 data class Passenger(

@@ -22,8 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kaushik.railway.data.Booking
-import com.kaushik.railway.data.MockData
+import com.kaushik.railway.AppViewModel
 import com.kaushik.railway.ui.components.KeyValue
 import com.kaushik.railway.ui.components.LabeledField
 import com.kaushik.railway.ui.components.OrangeButton
@@ -34,10 +33,8 @@ import com.kaushik.railway.ui.theme.Navy
 import com.kaushik.railway.ui.theme.Orange
 
 @Composable
-fun PnrScreen(onBack: () -> Unit) {
-    var pnr by remember { mutableStateOf("4521987630") }
-    var result by remember { mutableStateOf<Booking?>(null) }
-    var error by remember { mutableStateOf<String?>(null) }
+fun PnrScreen(vm: AppViewModel, onBack: () -> Unit) {
+    var pnr by remember { mutableStateOf("") }
     Scaffold(topBar = { RailTopBar("PNR status", onBack) }) { pad ->
         Column(
             Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).verticalScroll(rememberScrollState()).padding(16.dp)
@@ -46,28 +43,25 @@ fun PnrScreen(onBack: () -> Unit) {
                 pnr = value.filter { ch -> ch.isDigit() }.take(10)
             })
             Spacer(Modifier.height(12.dp))
-            OrangeButton("GET STATUS") {
-                result = MockData.pnrLookup(pnr)
-                error = if (result == null) "Enter a valid 10-digit PNR (demo accepts any 10 digits)." else null
-            }
-            error?.let { Text(it, color = Color.Red, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
-            result?.let { b ->
+            OrangeButton("GET LIVE STATUS") { vm.lookupPnr(pnr) }
+            if (vm.pnrLoading) Text("Fetching from RailKit…", color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
+            vm.pnrError?.let { Text(it, color = Color.Red, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
+            vm.pnrResult?.let { b ->
                 Spacer(Modifier.height(16.dp))
                 RailCard {
                     Column {
                         Text("PNR ${b.pnr}", fontWeight = FontWeight.Black, color = Orange, fontSize = 20.sp)
                         Spacer(Modifier.height(6.dp))
-                        StatusChip(b.status)
+                        StatusChip(b.chart.ifBlank { "Live" })
                         Spacer(Modifier.height(8.dp))
-                        KeyValue("Train", "${b.train.number} ${b.train.name}")
+                        KeyValue("Train", "${b.trainNo} ${b.trainName}")
                         KeyValue("From", b.fromName)
                         KeyValue("To", b.toName)
                         KeyValue("Date", b.date)
-                        KeyValue("Class", b.travelClass.code)
+                        KeyValue("Class / Quota", "${b.travelClass} / ${b.quota}")
+                        KeyValue("Fare", "₹${b.fare}")
                         Spacer(Modifier.height(8.dp))
-                        b.passengers.forEachIndexed { i, p ->
-                            Text("Passenger ${i + 1}: ${p.name} — ${b.status}", fontSize = 13.sp, color = Navy)
-                        }
+                        b.passengers.forEach { Text(it, fontSize = 13.sp, color = Navy) }
                     }
                 }
             }
@@ -76,32 +70,29 @@ fun PnrScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun RunningStatusScreen(onBack: () -> Unit) {
-    var trainNo by remember { mutableStateOf("12952") }
-    var show by remember { mutableStateOf(true) }
+fun RunningStatusScreen(vm: AppViewModel, onBack: () -> Unit) {
+    var trainNo by remember { mutableStateOf("12904") }
     Scaffold(topBar = { RailTopBar("Live running status", onBack) }) { pad ->
         Column(
             Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
-            LabeledField("Train number", trainNo, onValue = { trainNo = it })
+            LabeledField("Train number", trainNo, onValue = { trainNo = it.filter { ch -> ch.isDigit() }.take(5) })
             Spacer(Modifier.height(12.dp))
-            OrangeButton("GET STATUS") { show = true }
-            if (show) {
+            OrangeButton("GET LIVE STATUS") { vm.loadRunning(trainNo) }
+            if (vm.runningLoading) Text("Fetching live timeline…", color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
+            vm.runningError?.let { Text(it, color = Color.Red, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
+            if (vm.runningNote.isNotBlank()) {
                 Spacer(Modifier.height(12.dp))
-                Text("Mumbai Rajdhani  •  delayed by 18 min", fontWeight = FontWeight.Bold, color = Navy)
-                Spacer(Modifier.height(8.dp))
-                MockData.runningStops(trainNo).forEach { stop ->
-                    RailCard(Modifier.padding(bottom = 8.dp)) {
-                        Row(Modifier.fillMaxWidth()) {
-                            Column(Modifier.weight(1f)) {
-                                Text("${stop.station} (${stop.code})", fontWeight = FontWeight.SemiBold, color = Navy)
-                                Text("Arr ${stop.schArr}   Dep ${stop.schDep}", fontSize = 12.sp, color = Color.Gray)
-                            }
-                            Column {
-                                StatusChip(stop.status)
-                                if (stop.delayMin > 0) Text("+${stop.delayMin} min", color = Orange, fontSize = 12.sp)
-                            }
+                Text(vm.runningNote, fontWeight = FontWeight.Bold, color = Navy)
+            }
+            vm.runningStops.forEach { stop ->
+                RailCard(Modifier.padding(bottom = 8.dp)) {
+                    Row(Modifier.fillMaxWidth()) {
+                        Column(Modifier.weight(1f)) {
+                            Text("${stop.station} (${stop.code})", fontWeight = FontWeight.SemiBold, color = Navy)
+                            Text("Arr ${stop.schArr}   Dep ${stop.schDep}", fontSize = 12.sp, color = Color.Gray)
                         }
+                        StatusChip(stop.status)
                     }
                 }
             }

@@ -33,32 +33,28 @@ object MockData {
         val t = to.ifBlank { "MMCT" }
         return listOf(
             Train(
-                "12952", "Mumbai Rajdhani", f, t, "16:55", "08:35", "15h 40m", "Daily",
-                listOf(
+                "12952", "Mumbai Rajdhani", f, t, "16:55", "08:35", "15h 40m", "Daily", classes = listOf(
                     TrainClassAvail("1A", "AC First", 4520, "AVAILABLE 12", 12),
                     TrainClassAvail("2A", "AC 2 Tier", 2680, "AVAILABLE 28", 28),
                     TrainClassAvail("3A", "AC 3 Tier", 1860, "RAC 4", 0)
                 )
             ),
             Train(
-                "12954", "August Kranti RJ", f, t, "17:40", "10:55", "17h 15m", "Daily",
-                listOf(
+                "12954", "August Kranti RJ", f, t, "17:40", "10:55", "17h 15m", "Daily", classes = listOf(
                     TrainClassAvail("2A", "AC 2 Tier", 2410, "WL 14", 0),
                     TrainClassAvail("3A", "AC 3 Tier", 1685, "AVAILABLE 9", 9),
                     TrainClassAvail("SL", "Sleeper", 625, "AVAILABLE 64", 64)
                 )
             ),
             Train(
-                "22210", "NDLS MMCT Duronto", f, t, "23:25", "16:40", "17h 15m", "Tue, Sat",
-                listOf(
+                "22210", "NDLS MMCT Duronto", f, t, "23:25", "16:40", "17h 15m", "Tue, Sat", classes = listOf(
                     TrainClassAvail("1A", "AC First", 4210, "AVAILABLE 4", 4),
                     TrainClassAvail("2A", "AC 2 Tier", 2520, "AVAILABLE 18", 18),
                     TrainClassAvail("3A", "AC 3 Tier", 1740, "AVAILABLE 41", 41)
                 )
             ),
             Train(
-                "12926", "Paschim SF Exp", f, t, "11:25", "05:50", "18h 25m", "Daily",
-                listOf(
+                "12926", "Paschim SF Exp", f, t, "11:25", "05:50", "18h 25m", "Daily", classes = listOf(
                     TrainClassAvail("2A", "AC 2 Tier", 1985, "AVAILABLE 7", 7),
                     TrainClassAvail("3A", "AC 3 Tier", 1380, "GNWL 22", 0),
                     TrainClassAvail("SL", "Sleeper", 520, "AVAILABLE 112", 112),
@@ -66,8 +62,7 @@ object MockData {
                 )
             ),
             Train(
-                "12432", "Trivandrum Raj", f, t, "10:55", "06:10", "19h 15m", "Tue, Thu, Fri",
-                listOf(
+                "12432", "Trivandrum Raj", f, t, "10:55", "06:10", "19h 15m", "Tue, Thu, Fri", classes = listOf(
                     TrainClassAvail("1A", "AC First", 5120, "AVAILABLE 2", 2),
                     TrainClassAvail("2A", "AC 2 Tier", 3010, "RAC 1", 0),
                     TrainClassAvail("3A", "AC 3 Tier", 2095, "AVAILABLE 16", 16)

@@ -140,7 +140,7 @@ fun PaymentScreen(vm: AppViewModel, onBack: () -> Unit, onSuccess: () -> Unit) {
                 vm.confirmBooking()
                 onSuccess()
             }
-            Text("Demo payment — no real money is charged.", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+            Text("Live fare from RailKit. Payment is local only — RailKit cannot book IRCTC tickets.", color = Color.Gray, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }

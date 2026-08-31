@@ -16,9 +16,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,17 +40,21 @@ import com.kaushik.railway.ui.theme.Orange
 
 @Composable
 fun TrainListScreen(vm: AppViewModel, onBack: () -> Unit, onSelect: (Train) -> Unit) {
-    val trains = vm.searchTrains()
+    val trains = vm.trains
     Scaffold(topBar = { RailTopBar("${vm.fromCode} → ${vm.toCode}", onBack) }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0))) {
             Text(
-                "${trains.size} trains  •  ${vm.journeyDate}  •  ${vm.selectedQuota.take(2)}",
+                "${if (vm.searchLoading) "Searching…" else "${trains.size} trains"}  •  ${vm.journeyDate}  •  ${vm.quotaCode()}",
                 modifier = Modifier.padding(16.dp),
                 color = Color.Gray,
                 fontSize = 13.sp
             )
+            if (vm.searchLoading) {
+                CircularProgressIndicator(Modifier.padding(24.dp), color = Orange)
+            }
+            vm.searchError?.let { Text(it, color = Color.Red, modifier = Modifier.padding(horizontal = 16.dp), fontSize = 13.sp) }
             LazyColumn(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(trains) { train ->
+                items(trains, key = { it.number + it.depart }) { train ->
                     RailCard(Modifier.clickable { onSelect(train) }) {
                         Column {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -94,13 +100,17 @@ fun TrainListScreen(vm: AppViewModel, onBack: () -> Unit, onSelect: (Train) -> U
 }
 
 @Composable
-fun AvailabilityScreen(vm: AppViewModel, onBack: () -> Unit, onBook: (TrainClassAvail) -> Unit) {
+fun AvailabilityScreen(vm: AppViewModel, onBack: () -> Unit, onVacancy: (TrainClassAvail) -> Unit) {
     val train = vm.selectedTrain ?: return
+    LaunchedEffect(train.number) { vm.loadAvailability(train) }
     Scaffold(topBar = { RailTopBar(train.name, onBack) }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).padding(16.dp)) {
-            Text("${train.number}  •  ${vm.journeyDate}", color = Color.Gray, fontSize = 13.sp)
+            Text("${train.number}  •  ${train.fromCode} → ${train.toCode}  •  ${vm.journeyDate}", color = Color.Gray, fontSize = 13.sp)
+            Text("Live seat availability (RailKit)", color = Color.Gray, fontSize = 12.sp)
             Spacer(Modifier.height(12.dp))
-            train.classes.forEach { cls ->
+            if (vm.availLoading) CircularProgressIndicator(color = Orange)
+            vm.availError?.let { Text(it, color = Color.Red, fontSize = 13.sp) }
+            vm.classRows.forEach { cls ->
                 RailCard(Modifier.padding(bottom = 10.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
@@ -110,10 +120,48 @@ fun AvailabilityScreen(vm: AppViewModel, onBack: () -> Unit, onBook: (TrainClass
                             StatusChip(cls.status)
                         }
                         Spacer(Modifier.width(8.dp))
-                        OrangeButton("BOOK", modifier = Modifier.width(110.dp)) { onBook(cls) }
+                        OrangeButton("CHART", modifier = Modifier.width(110.dp)) { onVacancy(cls) }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun VacancyChartScreen(vm: AppViewModel, onBack: () -> Unit, onBook: () -> Unit) {
+    val train = vm.selectedTrain ?: return
+    val cls = vm.selectedTravelClass ?: return
+    LaunchedEffect(cls.code) { vm.loadVacancyChart(cls) }
+    Scaffold(topBar = { RailTopBar("Vacancy chart • ${cls.code}", onBack) }) { pad ->
+        Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).padding(16.dp)) {
+            Text("${train.number} ${train.name}", fontWeight = FontWeight.Bold, color = Navy)
+            Text("Quota ${vm.quotaCode()}  •  fare ₹${vm.vacancy?.fare ?: cls.fare}", color = Color.Gray, fontSize = 13.sp)
+            Spacer(Modifier.height(12.dp))
+            val days = vm.vacancy?.days.orEmpty()
+            if (days.isEmpty()) {
+                CircularProgressIndicator(color = Orange)
+            } else {
+                days.forEach { day ->
+                    RailCard(Modifier.padding(bottom = 8.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(day.date, fontWeight = FontWeight.Bold, color = Navy)
+                                Text(day.prediction, fontSize = 12.sp, color = Color.Gray)
+                            }
+                            StatusChip(day.text.ifBlank { day.status })
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            OrangeButton("CONTINUE TO BOOK") { onBook() }
+            Text(
+                "RailKit does not issue IRCTC tickets. Booking here saves a local e-ticket using live fare/availability.",
+                color = Color.Gray,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 8.dp)
+            )
         }
     }
 }
