@@ -25,6 +25,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -74,7 +75,7 @@ fun HomeScreen(
         ) {
             RailCard {
                 Column {
-                    StationRow("From", vm.fromCode) { vm.fromCode = it }
+                    StationSearch("From", vm.fromCode, vm) { vm.fromCode = it }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                         IconButton(
                             onClick = { vm.swapStations() },
@@ -83,7 +84,7 @@ fun HomeScreen(
                             Icon(Icons.Default.SwapVert, "Swap", tint = Orange)
                         }
                     }
-                    StationRow("To", vm.toCode) { vm.toCode = it }
+                    StationSearch("To", vm.toCode, vm) { vm.toCode = it }
                     Spacer(Modifier.height(8.dp))
                     SimpleSelect("Journey date", vm.journeyDate, AppViewModel.upcomingDates()) {
                         vm.journeyDate = it
@@ -115,15 +116,37 @@ fun HomeScreen(
 }
 
 @Composable
-private fun StationRow(label: String, code: String, onSelect: (String) -> Unit) {
-    val st = MockData.stations.find { it.code == code }
-    SimpleSelect(
-        label,
-        st?.let { "${it.name} (${it.code})" } ?: code,
-        MockData.stations.map { "${it.name} (${it.code})" }
-    ) { picked ->
-        val c = picked.substringAfterLast("(").substringBefore(")")
-        onSelect(c)
+private fun StationSearch(label: String, code: String, vm: AppViewModel, onSelect: (String) -> Unit) {
+    var query by remember(code) { mutableStateOf(vm.stationName(code)) }
+    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = {
+                query = it
+                if (it.length >= 2) vm.searchStations(it)
+            },
+            label = { Text(label) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        val suggestions = vm.stationSuggestions
+        if (suggestions.isNotEmpty() && query.length >= 2) {
+            suggestions.take(8).forEach { st ->
+                Text(
+                    "${st.name} (${st.code})",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onSelect(st.code)
+                            query = "${st.name} (${st.code})"
+                            vm.stationSuggestions.clear()
+                        }
+                        .padding(vertical = 8.dp),
+                    color = Navy,
+                    fontSize = 14.sp
+                )
+            }
+        }
     }
 }
 

@@ -106,24 +106,27 @@ class AppViewModel : ViewModel() {
         vacancy = null
         viewModelScope.launch {
             val classes = if (selectedClass == "All Classes") {
-                listOf("SL", "3A", "2A", "1A", "3E", "CC", "2S")
+                listOf("1A", "2A", "3A", "3E", "SL", "CC", "EC", "2S")
             } else listOf(selectedClass)
             val quota = quotaCode()
             val date = toApiDate(journeyDate)
             val fetched = withContext(Dispatchers.IO) {
                 classes.map { cls ->
                     async {
-                        runCatching {
+                        cls to runCatching {
                             val av = RailKitClient.getAvailability(
                                 train.number, train.fromCode, train.toCode, date, cls, quota
                             )
-                            TrainClassAvail(cls, className(cls), av.fare, av.status, 0) to av
-                        }.getOrNull()
+                            TrainClassAvail(cls, className(cls), av.fare, av.status, 0)
+                        }
                     }
-                }.awaitAll().filterNotNull()
+                }.awaitAll()
             }
-            classRows.addAll(fetched.map { it.first })
-            if (classRows.isEmpty()) availError = "No availability for this train (wrong boarding station or class)."
+            classRows.addAll(fetched.mapNotNull { it.second.getOrNull() })
+            if (classRows.isEmpty()) {
+                availError = fetched.mapNotNull { it.second.exceptionOrNull()?.message }.firstOrNull()
+                    ?: "No availability for ${train.fromCode} → ${train.toCode}."
+            }
             availLoading = false
         }
     }
@@ -169,7 +172,7 @@ class AppViewModel : ViewModel() {
                 val date = toApiDate(journeyDate)
                 val stops = withContext(Dispatchers.IO) { RailKitClient.trackTrain(trainNo, date) }
                 runningStops.addAll(stops)
-                runningNote = if (stops.isEmpty()) "No live timeline for this train/date." else "Live from RailKit"
+                runningNote = if (stops.isEmpty()) "No live timeline for this train." else "Live from RailRadar"
             } catch (e: Exception) {
                 runningError = e.message
             } finally {
