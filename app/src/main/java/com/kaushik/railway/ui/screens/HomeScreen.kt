@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -18,6 +19,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ConfirmationNumber
+import androidx.compose.material.icons.filled.Fastfood
+import androidx.compose.material.icons.filled.Hotel
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Train
@@ -38,13 +43,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kaushik.railway.AppViewModel
 import com.kaushik.railway.data.MockData
 import com.kaushik.railway.ui.components.OrangeButton
 import com.kaushik.railway.ui.components.RailCard
+import com.kaushik.railway.ui.components.TricolorStrip
+import com.kaushik.railway.ui.theme.Cream
+import com.kaushik.railway.ui.theme.Mute
 import com.kaushik.railway.ui.theme.Navy
+import com.kaushik.railway.ui.theme.NavyDark
+import com.kaushik.railway.ui.theme.NavyMid
 import com.kaushik.railway.ui.theme.Orange
 
 @Composable
@@ -55,62 +66,98 @@ fun HomeScreen(
     onRunning: () -> Unit,
     onBookings: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().background(Color(0xFFFFF7F0))) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .background(Navy)
-                .padding(horizontal = 20.dp, vertical = 18.dp)
-        ) {
-            Column {
-                Text("Namaste, ${vm.userName.split(" ").first()}", color = Color(0xFFFFCC80), fontSize = 13.sp)
-                Text("Book your train", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+    Column(Modifier.fillMaxSize().background(Cream)) {
+        Column(Modifier.fillMaxWidth().background(Navy)) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier.size(40.dp).clip(CircleShape).background(Orange),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Train, null, tint = Color.White, modifier = Modifier.size(22.dp))
+                }
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text("RailOne", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                    Text("Indian Railways  |  CRIS", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
+                }
+                Icon(Icons.Default.Notifications, null, tint = Color.White, modifier = Modifier.padding(end = 8.dp))
+                Icon(Icons.Default.Person, null, tint = Color.White)
             }
+            Text(
+                "Namaste, ${vm.userName.split(" ").first()}",
+                color = Color.White.copy(alpha = 0.9f),
+                fontSize = 13.sp,
+                modifier = Modifier.padding(start = 16.dp, bottom = 28.dp)
+            )
+            TricolorStrip()
         }
         Column(
             Modifier
                 .weight(1f)
+                .offset(y = (-18).dp)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(horizontal = 14.dp)
         ) {
             RailCard {
                 Column {
-                    StationSearch("From", vm.fromCode, vm) { vm.fromCode = it }
+                    Text("BOOK TICKET", fontWeight = FontWeight.Bold, color = Navy, fontSize = 13.sp, letterSpacing = 0.8.sp)
+                    Spacer(Modifier.height(8.dp))
+                    StationSearch("From / प्रस्थान", vm.fromCode, vm) { vm.fromCode = it }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                         IconButton(
                             onClick = { vm.swapStations() },
-                            modifier = Modifier.clip(CircleShape).background(Orange.copy(alpha = 0.15f))
+                            modifier = Modifier.clip(CircleShape).background(Navy.copy(alpha = 0.08f))
                         ) {
-                            Icon(Icons.Default.SwapVert, "Swap", tint = Orange)
+                            Icon(Icons.Default.SwapVert, "Swap", tint = Navy)
                         }
                     }
-                    StationSearch("To", vm.toCode, vm) { vm.toCode = it }
-                    Spacer(Modifier.height(8.dp))
-                    SimpleSelect("Journey date", vm.journeyDate, AppViewModel.upcomingDates()) {
+                    StationSearch("To / गंतव्य", vm.toCode, vm) { vm.toCode = it }
+                    Spacer(Modifier.height(4.dp))
+                    SimpleSelect("Journey date / यात्रा तिथि", vm.journeyDate, AppViewModel.upcomingDates()) {
                         vm.journeyDate = it
                     }
-                    Spacer(Modifier.height(8.dp))
-                    SimpleSelect("Class", vm.selectedClass, listOf("All Classes") + MockData.classes) {
-                        vm.selectedClass = it
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.weight(1f)) {
+                            SimpleSelect("Class", vm.selectedClass, listOf("All Classes") + MockData.classes) {
+                                vm.selectedClass = it
+                            }
+                        }
+                        Box(Modifier.weight(1f)) {
+                            SimpleSelect("Quota", vm.selectedQuota, MockData.quotas) { vm.selectedQuota = it }
+                        }
                     }
-                    Spacer(Modifier.height(8.dp))
-                    SimpleSelect("Quota", vm.selectedQuota, MockData.quotas) { vm.selectedQuota = it }
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(12.dp))
                     OrangeButton("SEARCH TRAINS") {
                         vm.searchTrainsLive()
                         onSearch()
                     }
-                    Text("Live data via RailRadar", color = Color.Gray, fontSize = 11.sp, modifier = Modifier.padding(top = 8.dp))
                 }
             }
-            Spacer(Modifier.height(18.dp))
-            Text("Quick services", fontWeight = FontWeight.Bold, color = Navy, fontSize = 16.sp)
+            Spacer(Modifier.height(16.dp))
+            Text("Services", fontWeight = FontWeight.Bold, color = NavyDark, fontSize = 16.sp)
+            Text("Enquiry & other CRIS services", color = Mute, fontSize = 12.sp)
             Spacer(Modifier.height(10.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                QuickTile("PNR Status", Icons.Default.ConfirmationNumber, Modifier.weight(1f), onPnr)
-                QuickTile("Live Status", Icons.Default.Timeline, Modifier.weight(1f), onRunning)
-                QuickTile("My Bookings", Icons.Default.Train, Modifier.weight(1f), onBookings)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ServiceTile("PNR", "Status", Icons.Default.ConfirmationNumber, Modifier.weight(1f), onPnr)
+                ServiceTile("Live", "Train", Icons.Default.Timeline, Modifier.weight(1f), onRunning)
+                ServiceTile("My", "Bookings", Icons.Default.Train, Modifier.weight(1f), onBookings)
+                ServiceTile("Retiring", "Room", Icons.Default.Hotel, Modifier.weight(1f), onBookings)
             }
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ServiceTile("e-Catering", "Meals", Icons.Default.Fastfood, Modifier.weight(1f), onBookings)
+                ServiceTile("Alerts", "Notices", Icons.Default.Notifications, Modifier.weight(1f), onPnr)
+                Spacer(Modifier.weight(1f))
+                Spacer(Modifier.weight(1f))
+            }
+            Text(
+                "Inspired by RailOne (CRIS). Not an official Indian Railways app.",
+                color = Mute,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(vertical = 16.dp)
+            )
         }
     }
 }
@@ -118,7 +165,7 @@ fun HomeScreen(
 @Composable
 private fun StationSearch(label: String, code: String, vm: AppViewModel, onSelect: (String) -> Unit) {
     var query by remember(code) { mutableStateOf(vm.stationName(code)) }
-    Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+    Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
         OutlinedTextField(
             value = query,
             onValueChange = {
@@ -127,7 +174,8 @@ private fun StationSearch(label: String, code: String, vm: AppViewModel, onSelec
             },
             label = { Text(label) },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
+            singleLine = true,
+            shape = RoundedCornerShape(8.dp)
         )
         val suggestions = vm.stationSuggestions
         if (suggestions.isNotEmpty() && query.length >= 2) {
@@ -141,7 +189,7 @@ private fun StationSearch(label: String, code: String, vm: AppViewModel, onSelec
                             query = "${st.name} (${st.code})"
                             vm.stationSuggestions.clear()
                         }
-                        .padding(vertical = 8.dp),
+                        .padding(vertical = 8.dp, horizontal = 4.dp),
                     color = Navy,
                     fontSize = 14.sp
                 )
@@ -154,8 +202,8 @@ private fun StationSearch(label: String, code: String, vm: AppViewModel, onSelec
 private fun SimpleSelect(label: String, value: String, options: List<String>, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().clickable { open = true }.padding(vertical = 6.dp)) {
-        Text(label.uppercase(), color = Color.Gray, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-        Text(value, color = Navy, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        Text(label.uppercase(), color = Mute, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+        Text(value, color = NavyDark, fontSize = 15.sp, fontWeight = FontWeight.Medium)
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach {
                 DropdownMenuItem(text = { Text(it) }, onClick = { onPick(it); open = false })
@@ -165,17 +213,23 @@ private fun SimpleSelect(label: String, value: String, options: List<String>, on
 }
 
 @Composable
-private fun QuickTile(title: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
+private fun ServiceTile(line1: String, line2: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
     Column(
         modifier
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(Color.White)
             .clickable(onClick = onClick)
-            .padding(14.dp),
+            .padding(vertical = 12.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(icon, null, tint = Orange, modifier = Modifier.size(28.dp))
+        Box(
+            Modifier.size(42.dp).clip(CircleShape).background(NavyMid.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = Navy, modifier = Modifier.size(22.dp))
+        }
         Spacer(Modifier.height(6.dp))
-        Text(title, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Navy)
+        Text(line1, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = NavyDark, textAlign = TextAlign.Center)
+        Text(line2, fontSize = 10.sp, color = Mute, textAlign = TextAlign.Center)
     }
 }

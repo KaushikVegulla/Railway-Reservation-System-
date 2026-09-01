@@ -1,7 +1,7 @@
 <resources>
     <style name="Theme.Railway" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">#0B2545</item>
+        <item name="android:statusBarColor">#0A3D91</item>
         <item name="android:navigationBarColor">#FFFFFF</item>
-        <item name="android:windowBackground">#FFF7F0</item>
+        <item name="android:windowBackground">#EEF2F7</item>
     </style>
 </resources>

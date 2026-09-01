@@ -37,7 +37,7 @@ fun PnrScreen(vm: AppViewModel, onBack: () -> Unit) {
     var pnr by remember { mutableStateOf("") }
     Scaffold(topBar = { RailTopBar("PNR status", onBack) }) { pad ->
         Column(
-            Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).verticalScroll(rememberScrollState()).padding(16.dp)
+            Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7)).verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
             LabeledField("10-digit PNR", pnr, onValue = { value ->
                 pnr = value.filter { ch -> ch.isDigit() }.take(10)
@@ -74,7 +74,7 @@ fun RunningStatusScreen(vm: AppViewModel, onBack: () -> Unit) {
     var trainNo by remember { mutableStateOf("12904") }
     Scaffold(topBar = { RailTopBar("Live running status", onBack) }) { pad ->
         Column(
-            Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).verticalScroll(rememberScrollState()).padding(16.dp)
+            Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7)).verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
             LabeledField("Train number", trainNo, onValue = { trainNo = it.filter { ch -> ch.isDigit() }.take(5) })
             Spacer(Modifier.height(12.dp))
@@ -103,7 +103,7 @@ fun RunningStatusScreen(vm: AppViewModel, onBack: () -> Unit) {
 @Composable
 fun ProfileScreen(onBack: () -> Unit, userId: String, userName: String, email: String, mobile: String, onLogout: () -> Unit) {
     Scaffold(topBar = { RailTopBar("My profile", onBack) }) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).padding(16.dp)) {
+        Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7)).padding(16.dp)) {
             RailCard {
                 Column {
                     KeyValue("Name", userName)
@@ -120,8 +120,9 @@ fun ProfileScreen(onBack: () -> Unit, userId: String, userName: String, email: S
 
 @Composable
 fun MoreScreen(onPnr: () -> Unit, onRunning: () -> Unit, onProfile: () -> Unit, onBookings: () -> Unit) {
-    Column(Modifier.fillMaxSize().background(Color(0xFFFFF7F0)).padding(16.dp)) {
+    Column(Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).padding(16.dp)) {
         Text("More", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Navy)
+        Text("RailOne  •  CRIS services", color = Color.Gray, fontSize = 13.sp)
         Spacer(Modifier.height(12.dp))
         listOf(
             "PNR enquiry" to onPnr,
@@ -136,7 +137,7 @@ fun MoreScreen(onPnr: () -> Unit, onRunning: () -> Unit, onProfile: () -> Unit, 
             }
         }
         Text(
-            "Inspired by IRCTC Rail Connect. Academic / demo project only — not an official IRCTC app.",
+            "Inspired by RailOne (CRIS). Academic demo only — not an official Indian Railways app.",
             color = Color.Gray,
             fontSize = 12.sp,
             modifier = Modifier.padding(top = 16.dp)

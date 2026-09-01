@@ -5,25 +5,30 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 
-val Navy = Color(0xFF0B2545)
-val NavyMid = Color(0xFF13315C)
-val Orange = Color(0xFFE85D04)
-val OrangeDeep = Color(0xFFDC2F02)
-val Cream = Color(0xFFFFF7F0)
+/** CRIS RailOne-inspired palette */
+val Navy = Color(0xFF0A3D91)
+val NavyMid = Color(0xFF1565C0)
+val NavyDark = Color(0xFF062A66)
+val Orange = Color(0xFFF57C00)
+val OrangeDeep = Color(0xFFE65100)
+val Cream = Color(0xFFEEF2F7)
 val CardWhite = Color(0xFFFFFFFF)
-val Success = Color(0xFF2D6A4F)
-val Waitlist = Color(0xFF9B2226)
-val Rac = Color(0xFFBC6C25)
+val Success = Color(0xFF2E7D32)
+val Waitlist = Color(0xFFC62828)
+val Rac = Color(0xFFF9A825)
+val TricolorSaffron = Color(0xFFFF9933)
+val TricolorGreen = Color(0xFF138808)
+val Mute = Color(0xFF5B6B7C)
 
 private val scheme = lightColorScheme(
-    primary = Orange,
+    primary = Navy,
     onPrimary = Color.White,
-    secondary = Navy,
+    secondary = Orange,
     onSecondary = Color.White,
     background = Cream,
-    onBackground = Navy,
+    onBackground = NavyDark,
     surface = CardWhite,
-    onSurface = Navy,
+    onSurface = NavyDark,
     error = Waitlist
 )
 

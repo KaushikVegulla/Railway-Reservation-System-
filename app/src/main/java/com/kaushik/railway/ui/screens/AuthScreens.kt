@@ -49,7 +49,7 @@ fun SplashScreen(onDone: () -> Unit) {
     Box(
         Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Navy, Color(0xFF1B3A6B)))),
+            .background(Brush.verticalGradient(listOf(Color(0xFF062A66), Navy))),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -60,8 +60,9 @@ fun SplashScreen(onDone: () -> Unit) {
                 Icon(Icons.Default.Train, null, tint = Color.White, modifier = Modifier.size(48.dp))
             }
             Spacer(Modifier.height(16.dp))
-            Text("RAIL CONNECT", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Black)
-            Text("Indian Railways  •  e-Ticketing", color = Color(0xFFFFCC80), fontSize = 13.sp)
+            Text("RailOne", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black)
+            Text("Centre for Railway Information Systems", color = Color(0xFFFFCC80), fontSize = 12.sp)
+            Text("Indian Railways  •  e-Ticketing", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
         }
     }
 }
@@ -71,11 +72,11 @@ fun LoginScreen(vm: AppViewModel, onLogin: () -> Unit, onRegister: () -> Unit) {
     var id by remember { mutableStateOf("demo_user") }
     var pass by remember { mutableStateOf("demo123") }
     Column(
-        Modifier.fillMaxSize().background(Color(0xFFFFF7F0)).padding(24.dp).verticalScroll(rememberScrollState()),
+        Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).padding(24.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center
     ) {
-        Text("IRCTC login", color = Navy, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Text("Use your Rail Connect user ID", color = Color.Gray, fontSize = 14.sp)
+        Text("RailOne login", color = Navy, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+        Text("Sign in to book and enquire", color = Color.Gray, fontSize = 14.sp)
         Spacer(Modifier.height(24.dp))
         LabeledField("User ID", id, onValue = { id = it })
         Spacer(Modifier.height(12.dp))
@@ -106,7 +107,7 @@ fun RegisterScreen(vm: AppViewModel, onDone: () -> Unit, onBack: () -> Unit) {
     var mobile by remember { mutableStateOf("") }
     var user by remember { mutableStateOf("") }
     Column(
-        Modifier.fillMaxSize().background(Color(0xFFFFF7F0)).padding(24.dp).verticalScroll(rememberScrollState())
+        Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).padding(24.dp).verticalScroll(rememberScrollState())
     ) {
         Text("Create account", color = Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(16.dp))

@@ -169,7 +169,7 @@ fun RailApp(vm: AppViewModel = viewModel()) {
 
 @Composable
 private fun NavItem(label: String, selected: Boolean, icon: ImageVector, onClick: () -> Unit) {
-    val tint = if (selected) Orange else Navy.copy(alpha = 0.55f)
+    val tint = if (selected) Navy else Color(0xFF8A97A6)
     Column(
         modifier = Modifier.clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 4.dp),
         horizontalAlignment = Alignment.CenterHorizontally

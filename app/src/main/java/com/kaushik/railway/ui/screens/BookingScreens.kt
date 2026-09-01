@@ -38,7 +38,7 @@ import com.kaushik.railway.ui.theme.Orange
 fun PassengerScreen(vm: AppViewModel, onBack: () -> Unit, onContinue: () -> Unit) {
     Scaffold(topBar = { RailTopBar("Passenger details", onBack) }) { pad ->
         Column(
-            Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).verticalScroll(rememberScrollState()).padding(16.dp)
+            Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7)).verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
             vm.passengers.forEachIndexed { i, p ->
                 RailCard(Modifier.padding(bottom = 12.dp)) {
@@ -81,7 +81,7 @@ fun ReviewScreen(vm: AppViewModel, onBack: () -> Unit, onPay: () -> Unit) {
     val total = cls.fare * vm.passengers.size + ins
     Scaffold(topBar = { RailTopBar("Review booking", onBack) }) { pad ->
         Column(
-            Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).verticalScroll(rememberScrollState()).padding(16.dp)
+            Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7)).verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
             RailCard {
                 Column {
@@ -126,7 +126,7 @@ fun PaymentScreen(vm: AppViewModel, onBack: () -> Unit, onSuccess: () -> Unit) {
     val ins = if (vm.insurance) vm.passengers.size * 15 else 0
     val total = cls.fare * vm.passengers.size + ins
     Scaffold(topBar = { RailTopBar("Payment", onBack) }) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).padding(16.dp)) {
+        Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7)).padding(16.dp)) {
             Text("Amount payable", color = Color.Gray)
             Text("₹$total", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Navy)
             Spacer(Modifier.height(16.dp))
@@ -150,7 +150,7 @@ fun TicketScreen(vm: AppViewModel, onHome: () -> Unit) {
     val b = vm.lastBooking
     Scaffold(topBar = { RailTopBar("e-Ticket") }) { pad ->
         Column(
-            Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).verticalScroll(rememberScrollState()).padding(16.dp)
+            Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7)).verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
             if (b == null) {
                 Text("No ticket")
@@ -183,7 +183,7 @@ fun TicketScreen(vm: AppViewModel, onHome: () -> Unit) {
 @Composable
 fun BookingsScreen(vm: AppViewModel, onBack: () -> Unit) {
     Scaffold(topBar = { RailTopBar("My bookings", onBack) }) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFFFF7F0)).padding(16.dp)) {
+        Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7)).padding(16.dp)) {
             if (vm.bookings.isEmpty()) {
                 Text("No bookings yet. Search trains to book a ticket.", color = Color.Gray)
             } else {
