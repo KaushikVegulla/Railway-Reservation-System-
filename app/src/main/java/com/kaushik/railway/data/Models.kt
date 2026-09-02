@@ -72,7 +72,9 @@ data class Booking(
     val status: String,
     val amount: Int,
     val fromName: String,
-    val toName: String
+    val toName: String,
+    val paymentId: String = "",
+    val orderId: String = ""
 )
 
 data class RunningStop(

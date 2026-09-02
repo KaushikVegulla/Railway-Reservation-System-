@@ -189,12 +189,17 @@ class AppViewModel : ViewModel() {
         }
     }
 
-    fun confirmBooking(): Booking {
+    fun payableAmount(): Int {
+        val cls = selectedTravelClass ?: return 1
+        val ins = if (insurance) passengers.size * 15 else 0
+        return (cls.fare * passengers.size + ins).coerceAtLeast(1)
+    }
+
+    fun confirmBooking(paymentId: String = "", orderId: String = ""): Booking {
         val train = selectedTrain!!
         val cls = selectedTravelClass!!
         val pnr = (1..10).map { Random.nextInt(0, 10) }.joinToString("")
-        val ins = if (insurance) passengers.size * 15 else 0
-        val amount = cls.fare * passengers.size + ins
+        val amount = payableAmount()
         val booking = Booking(
             pnr = pnr,
             train = train,
@@ -203,10 +208,12 @@ class AppViewModel : ViewModel() {
             quota = quotaCode(),
             passengers = passengers.toList(),
             contact = mobile,
-            status = cls.status,
+            status = "PAID",
             amount = amount,
             fromName = stationName(fromCode),
-            toName = stationName(toCode)
+            toName = stationName(toCode),
+            paymentId = paymentId,
+            orderId = orderId
         )
         lastBooking = booking
         bookings.add(0, booking)

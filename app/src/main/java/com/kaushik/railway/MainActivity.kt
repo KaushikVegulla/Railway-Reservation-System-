@@ -4,6 +4,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.kaushik.railway.data.PaymentBridge
+import com.razorpay.Checkout
+import com.razorpay.PaymentData
+import com.razorpay.PaymentResultWithDataListener
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -55,13 +59,27 @@ import com.kaushik.railway.ui.screens.TrainListScreen
 import com.kaushik.railway.ui.screens.VacancyChartScreen
 import com.kaushik.railway.ui.theme.RailwayTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Checkout.preload(applicationContext)
         enableEdgeToEdge()
         setContent {
             RailwayTheme { RailApp() }
         }
+    }
+
+    override fun onPaymentSuccess(razorpayPaymentId: String?, paymentData: PaymentData?) {
+        val data = paymentData?.data
+        PaymentBridge.onSuccess?.invoke(
+            razorpayPaymentId.orEmpty(),
+            data?.optString("razorpay_order_id").orEmpty().ifBlank { paymentData?.orderId.orEmpty() },
+            data?.optString("razorpay_signature").orEmpty().ifBlank { paymentData?.signature.orEmpty() }
+        )
+    }
+
+    override fun onPaymentError(code: Int, response: String?, paymentData: PaymentData?) {
+        PaymentBridge.onError?.invoke(response ?: "Payment failed ($code)")
     }
 }
 

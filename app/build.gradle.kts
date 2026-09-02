@@ -52,6 +52,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
+    implementation(libs.razorpay.checkout)
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
 }
