@@ -226,7 +226,7 @@ fun PaymentScreen(vm: AppViewModel, onBack: () -> Unit, onSuccess: () -> Unit) {
                 }
             }
             Text(
-                "Test mode. Start backend: python3 backend/server.py  •  Emulator talks to 10.0.2.2:8088",
+                "Razorpay test mode. Card 4111 1111 1111 1111, any future expiry/CVV. Works on any internet connection.",
                 color = Color.Gray,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 8.dp)
