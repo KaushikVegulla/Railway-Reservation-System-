@@ -2,16 +2,18 @@ package com.kaushik.railway
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.navigationBarsPadding
 import com.kaushik.railway.data.PaymentBridge
-import com.razorpay.Checkout
 import com.razorpay.PaymentData
 import com.razorpay.PaymentResultWithDataListener
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -21,7 +23,6 @@ import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.Train
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,6 +55,7 @@ import com.kaushik.railway.ui.screens.RegisterScreen
 import com.kaushik.railway.ui.screens.ReviewScreen
 import com.kaushik.railway.ui.screens.RunningStatusScreen
 import com.kaushik.railway.ui.screens.SplashScreen
+import com.kaushik.railway.ui.screens.VerifyEmailScreen
 import com.kaushik.railway.ui.screens.TicketScreen
 import com.kaushik.railway.ui.screens.TrainListScreen
 import com.kaushik.railway.ui.screens.VacancyChartScreen
@@ -62,10 +64,15 @@ import com.kaushik.railway.ui.theme.RailwayTheme
 class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Checkout.preload(applicationContext)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.light(
+                android.graphics.Color.WHITE,
+                android.graphics.Color.WHITE
+            )
+        )
         setContent {
-            RailwayTheme { RailApp() }
+            RailwayTheme { RailwayApp() }
         }
     }
 
@@ -73,8 +80,8 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
         val data = paymentData?.data
         PaymentBridge.onSuccess?.invoke(
             razorpayPaymentId.orEmpty(),
-            data?.optString("razorpay_order_id").orEmpty().ifBlank { paymentData?.orderId.orEmpty() },
-            data?.optString("razorpay_signature").orEmpty().ifBlank { paymentData?.signature.orEmpty() }
+            data?.optString("razorpay_order_id").orEmpty(),
+            data?.optString("razorpay_signature").orEmpty()
         )
     }
 
@@ -84,45 +91,48 @@ class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
 }
 
 @Composable
-fun RailApp(vm: AppViewModel = viewModel()) {
+fun RailwayApp(vm: AppViewModel = viewModel()) {
     val nav = rememberNavController()
     val back by nav.currentBackStackEntryAsState()
     val route = back?.destination?.route
     val tabs = setOf(Routes.Home, Routes.Bookings, Routes.Pnr, Routes.More)
     val showBar = route in tabs
 
-    Scaffold(
-        bottomBar = {
-            if (showBar) {
-                Surface(color = Color.White, shadowElevation = 8.dp) {
-                    Column {
-                        HorizontalDivider(color = Color(0xFFE0E0E0))
-                        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                            NavItem("Home", route == Routes.Home, Icons.Default.Home) {
-                                nav.navigate(Routes.Home) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true }
-                            }
-                            NavItem("Bookings", route == Routes.Bookings, Icons.Default.Train) {
-                                nav.navigate(Routes.Bookings) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true }
-                            }
-                            NavItem("PNR", route == Routes.Pnr, Icons.Default.ConfirmationNumber) {
-                                nav.navigate(Routes.Pnr) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true }
-                            }
-                            NavItem("More", route == Routes.More, Icons.Default.MoreHoriz) {
-                                nav.navigate(Routes.More) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true }
-                            }
-                        }
+    Column(Modifier.fillMaxSize()) {
+        NavHost(
+            navController = nav,
+            startDestination = Routes.Splash,
+            modifier = Modifier.weight(1f)
+        ) {
+            composable(Routes.Splash) {
+                SplashScreen {
+                    nav.navigate(Routes.Login) {
+                        popUpTo(Routes.Splash) { inclusive = true }
                     }
                 }
             }
-        }
-    ) { pad ->
-        NavHost(nav, startDestination = Routes.Splash, modifier = Modifier.padding(pad)) {
-            composable(Routes.Splash) { SplashScreen { nav.navigate(Routes.Login) { popUpTo(Routes.Splash) { inclusive = true } } } }
             composable(Routes.Login) {
-                LoginScreen(vm, onLogin = { nav.navigate(Routes.Home) { popUpTo(Routes.Login) { inclusive = true } } }, onRegister = { nav.navigate(Routes.Register) })
+                LoginScreen(
+                    vm,
+                    onLogin = { nav.navigate(Routes.Home) { popUpTo(Routes.Login) { inclusive = true } } },
+                    onRegister = { nav.navigate(Routes.Register) },
+                    onNeedVerify = { nav.navigate(Routes.Verify) }
+                )
             }
             composable(Routes.Register) {
-                RegisterScreen(vm, onDone = { nav.navigate(Routes.Home) { popUpTo(Routes.Login) { inclusive = true } } }, onBack = { nav.popBackStack() })
+                RegisterScreen(
+                    vm,
+                    onNeedVerify = { nav.navigate(Routes.Verify) },
+                    onBack = { nav.popBackStack() }
+                )
+            }
+            composable(Routes.Verify) {
+                VerifyEmailScreen(
+                    vm,
+                    email = vm.email,
+                    onVerified = { nav.navigate(Routes.Home) { popUpTo(Routes.Login) { inclusive = true } } },
+                    onBack = { nav.popBackStack() }
+                )
             }
             composable(Routes.Home) {
                 HomeScreen(
@@ -180,6 +190,27 @@ fun RailApp(vm: AppViewModel = viewModel()) {
                     onProfile = { nav.navigate(Routes.Profile) },
                     onBookings = { nav.navigate(Routes.Bookings) }
                 )
+            }
+        }
+        if (showBar) {
+            Surface(color = Color.White, shadowElevation = 8.dp, modifier = Modifier.navigationBarsPadding()) {
+                Column {
+                    HorizontalDivider(color = Color(0xFFE0E0E0))
+                    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        NavItem("Home", route == Routes.Home, Icons.Default.Home) {
+                            nav.navigate(Routes.Home) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true }
+                        }
+                        NavItem("Bookings", route == Routes.Bookings, Icons.Default.Train) {
+                            nav.navigate(Routes.Bookings) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true }
+                        }
+                        NavItem("PNR", route == Routes.Pnr, Icons.Default.ConfirmationNumber) {
+                            nav.navigate(Routes.Pnr) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true }
+                        }
+                        NavItem("More", route == Routes.More, Icons.Default.MoreHoriz) {
+                            nav.navigate(Routes.More) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true }
+                        }
+                    }
+                }
             }
         }
     }

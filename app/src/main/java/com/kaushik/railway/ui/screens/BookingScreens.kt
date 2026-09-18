@@ -1,6 +1,8 @@
 package com.kaushik.railway.ui.screens
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -20,6 +22,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -140,11 +143,19 @@ fun ReviewScreen(vm: AppViewModel, onBack: () -> Unit, onPay: () -> Unit) {
 @Composable
 fun PaymentScreen(vm: AppViewModel, onBack: () -> Unit, onSuccess: () -> Unit) {
     val total = vm.payableAmount()
-    val activity = LocalContext.current as Activity
+    val activity = LocalContext.current.findActivity()
     val scope = rememberCoroutineScope()
     var method by remember { mutableStateOf("all") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            PaymentBridge.onSuccess = null
+            PaymentBridge.onError = null
+        }
+    }
+
     Scaffold(topBar = { RailTopBar("Payment", onBack) }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7)).padding(16.dp)) {
             Text("Amount payable", color = Color.Gray)
@@ -166,15 +177,20 @@ fun PaymentScreen(vm: AppViewModel, onBack: () -> Unit, onSuccess: () -> Unit) {
                             if (selected) Modifier.border(2.dp, Orange, RoundedCornerShape(12.dp))
                             else Modifier
                         )
-                        .clickable { method = id }
+                        .clickable(enabled = !busy) { method = id }
                 ) {
                     Text(label, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, color = Navy)
                 }
             }
             error?.let { Text(it, color = Color.Red, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp)) }
-            if (busy) Text("Contacting payment server…", color = Color.Gray, fontSize = 13.sp)
+            if (busy) Text("Opening Razorpay checkout…", color = Color.Gray, fontSize = 13.sp)
             Spacer(Modifier.height(12.dp))
             OrangeButton(if (busy) "PLEASE WAIT" else "PAY ₹$total", enabled = !busy) {
+                val host = activity
+                if (host == null) {
+                    error = "Unable to open Razorpay checkout from this screen."
+                    return@OrangeButton
+                }
                 busy = true
                 error = null
                 PaymentBridge.onSuccess = { payId, orderId, sig ->
@@ -192,22 +208,31 @@ fun PaymentScreen(vm: AppViewModel, onBack: () -> Unit, onSuccess: () -> Unit) {
                 }
                 PaymentBridge.onError = { msg ->
                     busy = false
-                    error = msg
+                    error = payError(msg)
                 }
                 scope.launch {
                     try {
                         val order = withContext(Dispatchers.IO) {
-                            PaymentApi.createOrder(total, "PNR-${vm.fromCode}-${vm.toCode}")
+                            PaymentApi.createOrder(
+                                total,
+                                "railone_${vm.fromCode}${vm.toCode}_${System.currentTimeMillis()}"
+                            )
                         }
                         val options = JSONObject().apply {
                             put("key", order.keyId)
                             put("amount", order.amountPaise)
                             put("currency", order.currency)
                             put("name", "RailOne")
-                            put("description", "Train ticket")
+                            put("description", "${vm.fromCode} to ${vm.toCode} ticket")
                             put("order_id", order.orderId)
                             put("theme", JSONObject().put("color", "#0A3D91"))
-                            put("prefill", JSONObject().put("email", vm.email).put("contact", vm.mobile))
+                            put("retry", JSONObject().put("enabled", true).put("max_count", 1))
+                            put(
+                                "prefill",
+                                JSONObject()
+                                    .put("email", vm.email.ifBlank { "passenger@railone.test" })
+                                    .put("contact", vm.mobile.filter { it.isDigit() }.ifBlank { "9999999999" })
+                            )
                             put(
                                 "method",
                                 JSONObject().apply {
@@ -218,21 +243,49 @@ fun PaymentScreen(vm: AppViewModel, onBack: () -> Unit, onSuccess: () -> Unit) {
                                 }
                             )
                         }
-                        Checkout().open(activity, options)
+                        withContext(Dispatchers.Main) {
+                            val checkout = Checkout()
+                            checkout.setKeyID(order.keyId)
+                            checkout.open(host, options)
+                        }
                     } catch (e: Exception) {
                         busy = false
-                        error = e.message ?: "Could not create order. Is backend running on :8088?"
+                        error = payError(e.message)
                     }
                 }
             }
             Text(
-                "Razorpay test mode. Card 4111 1111 1111 1111, any future expiry/CVV. Works on any internet connection.",
+                "Razorpay test mode. Card 4111 1111 1111 1111, any future expiry, any CVV. UPI: success@razorpay",
                 color = Color.Gray,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
     }
+}
+
+private fun payError(msg: String?): String {
+    val m = msg.orEmpty()
+    return when {
+        m.contains("Authentication failed", true) ->
+            "Razorpay key was rejected. Reinstall the latest app build."
+        m.contains("failed to connect", true) || m.contains("timed out", true) ||
+            m.contains("Unable to resolve", true) || m.contains("timeout", true) ->
+            "Could not reach Razorpay. Turn on mobile data/Wi‑Fi and retry."
+        m.contains("cancelled", true) || m.contains("canceled", true) || m.contains("USER_CLOSED", true) ->
+            "Payment cancelled. Tap PAY to try again."
+        m.isBlank() -> "Payment could not start. Retry."
+        else -> m
+    }
+}
+
+private fun Context.findActivity(): Activity? {
+    var ctx: Context? = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    return null
 }
 
 @Composable

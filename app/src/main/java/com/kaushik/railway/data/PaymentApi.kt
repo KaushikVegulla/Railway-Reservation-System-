@@ -18,20 +18,23 @@ data class RazorOrder(
 )
 
 object PaymentApi {
-    private const val KEY_ID = "rzp_test_TX3nfhZmQmQBe6"
-    private const val KEY_SECRET = "RMoakqIkdaRbHUaMK0lpp2d9"
+    const val KEY_ID = "rzp_test_TYib4VKk6FHOg8"
+    private const val KEY_SECRET = "lELtQfFSuk2S2QucMzM2XDjz"
     private val jsonType = "application/json; charset=utf-8".toMediaType()
     private val http = OkHttpClient.Builder()
-        .connectTimeout(20, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .writeTimeout(20, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     fun createOrder(amountRupees: Int, receipt: String = "railone"): RazorOrder {
         val paise = amountRupees.coerceAtLeast(1) * 100
+        val safeReceipt = receipt.filter { it.isLetterOrDigit() || it == '_' }.take(40).ifBlank { "railone" }
         val body = JSONObject()
             .put("amount", paise)
             .put("currency", "INR")
-            .put("receipt", receipt.take(40))
+            .put("receipt", safeReceipt)
             .put("payment_capture", 1)
             .toString()
             .toRequestBody(jsonType)
@@ -45,10 +48,15 @@ object PaymentApi {
             val raw = resp.body?.string().orEmpty()
             val root = JSONObject(raw.ifBlank { "{}" })
             if (!resp.isSuccessful) {
-                throw IllegalStateException(root.optJSONObject("error")?.optString("description") ?: "Create order failed")
+                val desc = root.optJSONObject("error")?.optString("description")
+                    ?.ifBlank { null }
+                    ?: "Create order failed (${resp.code})"
+                throw IllegalStateException(desc)
             }
+            val orderId = root.optString("id")
+            if (orderId.isBlank()) throw IllegalStateException("Razorpay did not return an order id")
             return RazorOrder(
-                orderId = root.optString("id"),
+                orderId = orderId,
                 keyId = KEY_ID,
                 amountPaise = root.optInt("amount", paise),
                 currency = root.optString("currency", "INR")

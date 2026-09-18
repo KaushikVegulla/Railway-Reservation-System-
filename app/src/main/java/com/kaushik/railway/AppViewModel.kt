@@ -43,6 +43,8 @@ class AppViewModel : ViewModel() {
     var passengers = mutableStateListOf(Passenger())
     var mobile by mutableStateOf("9876543210")
     var email by mutableStateOf("kaushik@example.com")
+    var otpEmailed by mutableStateOf(true)
+    var otpDisplayCode by mutableStateOf<String?>(null)
     var insurance by mutableStateOf(true)
     var lastBooking by mutableStateOf<Booking?>(null)
     val bookings = mutableStateListOf<Booking>()

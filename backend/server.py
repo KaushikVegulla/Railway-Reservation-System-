@@ -8,7 +8,9 @@ import hashlib
 import hmac
 import json
 import os
+import random
 import ssl
+import time
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -26,13 +28,75 @@ if env_path.exists():
 
 KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
 KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+RESEND_FROM = os.environ.get("RESEND_FROM", "RailOne <beth.t@example.com>")
 PORT = int(os.environ.get("PORT", "8088"))
 RAZORPAY_ORDERS = "https://api.razorpay.com/v1/orders"
+USERS_FILE = ROOT / "users.json"
 
-# order_id -> {amount_paise, currency, receipt}
 ORDERS: dict[str, dict] = {}
-# verified payments
 PAYMENTS: dict[str, dict] = {}
+OTP_TTL_SEC = 10 * 60
+
+
+def load_users() -> dict:
+    if USERS_FILE.exists():
+        try:
+            return json.loads(USERS_FILE.read_text())
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def save_users(users: dict) -> None:
+    USERS_FILE.write_text(json.dumps(users, indent=2))
+
+
+USERS = load_users()
+
+
+def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
+    salt = salt or hashlib.sha256(os.urandom(16)).hexdigest()[:16]
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 120_000).hex()
+    return salt, digest
+
+
+def send_resend_email(to_email: str, subject: str, html: str) -> dict:
+    if not RESEND_API_KEY:
+        raise RuntimeError("RESEND_API_KEY not set")
+    payload = json.dumps({"from": RESEND_FROM, "to": [to_email], "subject": subject, "html": html}).encode()
+    req = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=payload,
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {RESEND_API_KEY}",
+            "Content-Type": "application/json",
+        },
+    )
+    ctx = ssl.create_default_context()
+    with urllib.request.urlopen(req, context=ctx, timeout=30) as resp:
+        return json.loads(resp.read().decode())
+
+
+def issue_otp(email: str, name: str) -> str:
+    code = f"{random.randint(0, 999999):06d}"
+    user = USERS[email]
+    user["otp"] = code
+    user["otpExpires"] = time.time() + OTP_TTL_SEC
+    save_users(USERS)
+    html = f"""
+    <div style="font-family:sans-serif;max-width:480px">
+      <h2 style="color:#0A3D91">RailOne email verification</h2>
+      <p>Hi {name or 'traveller'},</p>
+      <p>Your verification code is:</p>
+      <p style="font-size:28px;font-weight:bold;letter-spacing:6px;color:#F57C00">{code}</p>
+      <p>This code expires in 10 minutes.</p>
+      <p style="color:#666;font-size:12px">Centre for Railway Information Systems — student demo</p>
+    </div>
+    """
+    send_resend_email(email, "Verify your RailOne account", html)
+    return code
 
 
 def _auth_header() -> str:
@@ -93,8 +157,9 @@ class Handler(BaseHTTPRequestHandler):
                 200,
                 {
                     "ok": True,
-                    "service": "railone-payments",
+                    "service": "railone-backend",
                     "keyIdPresent": bool(KEY_ID),
+                    "resendPresent": bool(RESEND_API_KEY),
                 },
             )
             return
@@ -119,6 +184,18 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path in ("/verify-payment", "/api/verify-payment"):
             self._verify(body)
+            return
+        if self.path in ("/register", "/api/register"):
+            self._register(body)
+            return
+        if self.path in ("/verify-email", "/api/verify-email"):
+            self._verify_email(body)
+            return
+        if self.path in ("/login", "/api/login"):
+            self._login(body)
+            return
+        if self.path in ("/resend-code", "/api/resend-code"):
+            self._resend(body)
             return
         self._send(404, {"success": False, "error": "Not found"})
 
@@ -185,13 +262,111 @@ class Handler(BaseHTTPRequestHandler):
             },
         )
 
+    def _register(self, body: dict) -> None:
+        name = str(body.get("name") or "").strip()
+        email = str(body.get("email") or "").strip().lower()
+        password = str(body.get("password") or "")
+        if not name or "@" not in email or len(password) < 6:
+            self._send(400, {"success": False, "error": "Name, valid email, and password (6+ chars) required"})
+            return
+        existing = USERS.get(email)
+        if existing and existing.get("verified"):
+            self._send(409, {"success": False, "error": "Email already registered. Please login."})
+            return
+        salt, digest = hash_password(password)
+        USERS[email] = {
+            "name": name,
+            "email": email,
+            "salt": salt,
+            "passwordHash": digest,
+            "verified": False,
+        }
+        save_users(USERS)
+        try:
+            issue_otp(email, name)
+        except urllib.error.HTTPError as e:
+            err = e.read().decode()[:400]
+            self._send(502, {"success": False, "error": f"Could not send email: {err}"})
+            return
+        except Exception as e:  # noqa: BLE001
+            self._send(502, {"success": False, "error": f"Could not send email: {e}"})
+            return
+        self._send(200, {"success": True, "email": email, "message": "Verification code sent to email"})
+
+    def _verify_email(self, body: dict) -> None:
+        email = str(body.get("email") or "").strip().lower()
+        code = str(body.get("code") or "").strip()
+        user = USERS.get(email)
+        if not user:
+            self._send(404, {"success": False, "error": "No account for this email"})
+            return
+        if user.get("verified"):
+            self._send(200, {"success": True, "verified": True, "name": user["name"], "email": email})
+            return
+        if not user.get("otp") or time.time() > float(user.get("otpExpires") or 0):
+            self._send(400, {"success": False, "error": "Code expired. Request a new one."})
+            return
+        if user.get("otp") != code:
+            self._send(400, {"success": False, "error": "Invalid verification code"})
+            return
+        user["verified"] = True
+        user.pop("otp", None)
+        user.pop("otpExpires", None)
+        save_users(USERS)
+        self._send(200, {"success": True, "verified": True, "name": user["name"], "email": email})
+
+    def _login(self, body: dict) -> None:
+        email = str(body.get("email") or "").strip().lower()
+        password = str(body.get("password") or "")
+        user = USERS.get(email)
+        if not user:
+            self._send(401, {"success": False, "error": "Invalid email or password"})
+            return
+        salt, digest = hash_password(password, user.get("salt"))
+        if digest != user.get("passwordHash"):
+            self._send(401, {"success": False, "error": "Invalid email or password"})
+            return
+        if not user.get("verified"):
+            try:
+                issue_otp(email, user.get("name", ""))
+            except Exception:
+                pass
+            self._send(
+                403,
+                {
+                    "success": False,
+                    "needsVerification": True,
+                    "email": email,
+                    "error": "Email not verified. We sent a new code.",
+                },
+            )
+            return
+        self._send(200, {"success": True, "name": user["name"], "email": email})
+
+    def _resend(self, body: dict) -> None:
+        email = str(body.get("email") or "").strip().lower()
+        user = USERS.get(email)
+        if not user:
+            self._send(404, {"success": False, "error": "No account for this email"})
+            return
+        try:
+            issue_otp(email, user.get("name", ""))
+        except Exception as e:  # noqa: BLE001
+            self._send(502, {"success": False, "error": str(e)})
+            return
+        self._send(200, {"success": True, "message": "New code sent"})
+
 
 def main() -> None:
     if not KEY_ID or not KEY_SECRET:
         raise SystemExit("Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in backend/.env")
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"RailOne payments listening on http://0.0.0.0:{PORT}")
-    print("  POST /create-order   {amount: <INR>}")
+    print(f"RailOne backend listening on http://0.0.0.0:{PORT}")
+    print("  POST /register       {name, email, password}")
+    print("  POST /verify-email   {email, code}")
+    print("  POST /login          {email, password}")
+    print("  POST /resend-code    {email}")
+    print("  POST /create-order   {amount}")
     print("  POST /verify-payment {razorpay_payment_id, razorpay_order_id, razorpay_signature}")
     httpd.serve_forever()
 

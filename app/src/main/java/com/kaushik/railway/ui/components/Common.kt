@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -28,6 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kaushik.railway.ui.theme.Mute
@@ -122,13 +126,21 @@ fun StatusChip(status: String) {
 }
 
 @Composable
-fun LabeledField(label: String, value: String, modifier: Modifier = Modifier, onValue: (String) -> Unit) {
+fun LabeledField(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    isPassword: Boolean = false,
+    onValue: (String) -> Unit,
+) {
     OutlinedTextField(
         value = value,
         onValueChange = onValue,
         label = { Text(label) },
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
+        visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(keyboardType = if (isPassword) KeyboardType.Password else KeyboardType.Text),
         shape = RoundedCornerShape(8.dp)
     )
 }

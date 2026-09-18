@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -25,6 +26,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -89,7 +91,7 @@ fun LoginScreen(vm: AppViewModel, onLogin: () -> Unit, onRegister: () -> Unit, o
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     Column(
-        Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).padding(24.dp).verticalScroll(rememberScrollState()),
+        Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).systemBarsPadding().padding(24.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center
     ) {
         Text("RailOne login", color = Navy, fontSize = 28.sp, fontWeight = FontWeight.Bold)
@@ -113,6 +115,8 @@ fun LoginScreen(vm: AppViewModel, onLogin: () -> Unit, onRegister: () -> Unit, o
                     onLogin()
                 } catch (e: UnverifiedException) {
                     vm.email = e.email
+                    vm.otpEmailed = e.emailed
+                    vm.otpDisplayCode = e.displayCode
                     onNeedVerify(e.email)
                 } catch (e: Exception) {
                     error = friendlyNetError(e.message)
@@ -136,10 +140,10 @@ fun RegisterScreen(vm: AppViewModel, onNeedVerify: (String) -> Unit, onBack: () 
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
     Column(
-        Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).padding(24.dp).verticalScroll(rememberScrollState())
+        Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).systemBarsPadding().padding(24.dp).verticalScroll(rememberScrollState())
     ) {
         Text("Create account", color = Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
-        Text("We’ll email a 6-digit verification code", color = Color.Gray, fontSize = 14.sp)
+        Text("We’ll send a 6-digit verification code", color = Color.Gray, fontSize = 14.sp)
         Spacer(Modifier.height(16.dp))
         LabeledField("Full name", name, onValue = { name = it })
         Spacer(Modifier.height(10.dp))
@@ -153,9 +157,13 @@ fun RegisterScreen(vm: AppViewModel, onNeedVerify: (String) -> Unit, onBack: () 
             error = null
             scope.launch {
                 try {
-                    withContext(Dispatchers.IO) { AuthApi.register(name.trim(), email.trim(), pass) }
+                    val otp = withContext(Dispatchers.IO) {
+                        AuthApi.register(name.trim(), email.trim(), pass)
+                    }
                     vm.userName = name.trim()
                     vm.email = email.trim()
+                    vm.otpEmailed = otp.emailed
+                    vm.otpDisplayCode = if (otp.emailed) null else otp.code
                     onNeedVerify(email.trim())
                 } catch (e: Exception) {
                     error = friendlyNetError(e.message)
@@ -170,16 +178,38 @@ fun RegisterScreen(vm: AppViewModel, onNeedVerify: (String) -> Unit, onBack: () 
 
 @Composable
 fun VerifyEmailScreen(vm: AppViewModel, email: String, onVerified: () -> Unit, onBack: () -> Unit) {
-    var code by remember { mutableStateOf("") }
+    var code by remember { mutableStateOf(vm.otpDisplayCode.orEmpty()) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var info by remember { mutableStateOf("Code sent to $email") }
+    var info by remember {
+        mutableStateOf(
+            if (vm.otpEmailed) "Code sent to $email"
+            else "Email delivery is blocked for this address. Use the in-app code below."
+        )
+    }
+
+    DisposableEffect(email) {
+        onDispose {
+            info = if (vm.otpEmailed) "Code sent to $email" else "Email delivery is blocked for this address. Use the in-app code below."
+        }
+    }
     val scope = rememberCoroutineScope()
     Column(
-        Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).padding(24.dp).verticalScroll(rememberScrollState())
+        Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).systemBarsPadding().padding(24.dp).verticalScroll(rememberScrollState())
     ) {
         Text("Verify email", color = Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Text(info, color = Color.Gray, fontSize = 14.sp)
+        vm.otpDisplayCode?.let { shown ->
+            Spacer(Modifier.height(12.dp))
+            Text("Your code", color = Navy, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(
+                shown,
+                color = Orange,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = 6.sp
+            )
+        }
         Spacer(Modifier.height(16.dp))
         LabeledField("6-digit code", code, onValue = { code = it.filter { ch -> ch.isDigit() }.take(6) })
         error?.let { Text(it, color = Color.Red, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp)) }
@@ -194,6 +224,7 @@ fun VerifyEmailScreen(vm: AppViewModel, email: String, onVerified: () -> Unit, o
                     vm.email = user.email
                     vm.userId = user.email
                     vm.loggedIn = true
+                    vm.otpDisplayCode = null
                     onVerified()
                 } catch (e: Exception) {
                     error = e.message
@@ -206,8 +237,16 @@ fun VerifyEmailScreen(vm: AppViewModel, email: String, onVerified: () -> Unit, o
             onClick = {
                 scope.launch {
                     try {
-                        withContext(Dispatchers.IO) { AuthApi.resendCode(email) }
-                        info = "New code sent to $email"
+                        val otp = withContext(Dispatchers.IO) { AuthApi.resendCode(email) }
+                        vm.otpEmailed = otp.emailed
+                        if (otp.emailed) {
+                            vm.otpDisplayCode = null
+                            info = "New code sent to $email"
+                        } else {
+                            vm.otpDisplayCode = otp.code
+                            code = otp.code
+                            info = "Email still blocked. New in-app code is shown below."
+                        }
                     } catch (e: Exception) {
                         error = e.message
                     }
@@ -217,7 +256,8 @@ fun VerifyEmailScreen(vm: AppViewModel, email: String, onVerified: () -> Unit, o
         ) { Text("Resend code", color = Orange) }
         TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back", color = Navy) }
         Text(
-            "Check inbox and spam. Codes expire in 10 minutes.",
+            if (vm.otpEmailed) "Check inbox and spam. Codes expire in 10 minutes."
+            else "Resend’s test sender cannot email this address. Codes expire in 10 minutes.",
             color = Color.Gray,
             fontSize = 12.sp,
             textAlign = TextAlign.Center,

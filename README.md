@@ -1,54 +1,44 @@
-# Railway Reservation System (Rail Connect)
+# Railway Reservation System (RailOne)
 
-Android mobile app inspired by **IRCTC Rail Connect**. Academic / demo project — **not affiliated with IRCTC or Indian Railways**.
+Android app inspired by **RailOne (CRIS)** / IRCTC Rail Connect.  
+Academic demo — **not affiliated with IRCTC, CRIS, or Indian Railways**.
 
 Repository: https://github.com/KaushikVegulla/Railway-Reservation-System-
 
-## Live RailRadar data
+## Features
 
-The app calls [RailRadar](https://railradar.in) (`https://api.railradar.in/v1`) with your `rg_…` key:
+| Area | How it works |
+|---|---|
+| Register / login | Name, email, password. 6-digit code via **Resend**. Works on any internet (4G or Wi‑Fi). No PC server. |
+| Train search | Live **RailRadar** between stations |
+| Seat vacancy | 14-day chart + fare |
+| PNR / live status | RailRadar enquiry |
+| Payment | **Razorpay** test checkout: UPI, cards, netbanking |
+| Ticket | Local e-ticket after verified payment |
 
-- Train search between stations
-- 14-day seat availability / vacancy chart
-- PNR status
-- Live running status
-- Fare lookup used at booking
+## Run the app
 
-**Ticket booking:** RailRadar has no IRCTC payment API. The app uses live availability and fare, then saves a **local e-ticket**. Real reserved tickets must still be booked on IRCTC.
+1. Android Studio → **File → Open** → `Railway-Reservation-System-`
+2. Gradle sync
+3. Run `app` on a phone or emulator
 
-## What you can do
+Min SDK 24. Target SDK 35.
 
-1. Login / register (demo user is pre-filled)
-2. Search trains (From / To / date / class / quota)
-3. See availability (AVAILABLE / RAC / WL) and fares
-4. Add passengers (up to 6), berth preference, contact
-5. Review fare + optional travel insurance
-6. Demo payment (UPI, eWallet, cards, net banking)
-7. e-Ticket with PNR
-8. My bookings + cancel ticket
-9. PNR enquiry
-10. Live running status
+You do **not** need `python3 backend/server.py` for login or payment. Those call Resend and Razorpay over HTTPS from the app.
 
-## Open in Android Studio
-
-1. Open Android Studio
-2. **File → Open** → this folder (`Railway-Reservation-System-`)
-3. Wait for Gradle sync
-4. Run on an emulator or phone (`app` configuration)
-
-Minimum SDK 24 (Android 7). Target SDK 35.
+Test card: `4111 1111 1111 1111`, any future expiry, any CVV.
 
 ## Project layout
 
 ```
 app/src/main/java/com/kaushik/railway/
-  MainActivity.kt          # navigation
-  AppViewModel.kt          # booking state
-  data/                    # models + mock trains/stations
-  ui/screens/              # login, home, trains, passengers, payment, PNR
-  ui/theme/                # navy + orange IRCTC-like palette
+  MainActivity.kt     navigation (starts at login)
+  AppViewModel.kt     booking state
+  data/               RailRadar, Resend, Razorpay
+  ui/screens/         login, home, trains, payment, PNR
+backend/              optional local payment server (not required)
 ```
 
 ## Disclaimer
 
-Names, train numbers, and UI patterns are used only as a **learning reference**. Do not use this app for real reservations. Book tickets only on the official IRCTC website or Rail Connect app.
+UI and train data are for learning only. Do not use this for real reservations.

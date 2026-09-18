@@ -1,8 +1,11 @@
 package com.kaushik.railway.ui.theme
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 
 /** CRIS RailOne-inspired palette */
@@ -34,5 +37,7 @@ private val scheme = lightColorScheme(
 
 @Composable
 fun RailwayTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = scheme, content = content)
+    MaterialTheme(colorScheme = scheme) {
+        Surface(modifier = Modifier.fillMaxSize(), color = Cream, content = content)
+    }
 }
