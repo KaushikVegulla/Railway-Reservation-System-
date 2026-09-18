@@ -42,7 +42,7 @@ import com.kaushik.railway.ui.theme.Orange
 fun TrainListScreen(vm: AppViewModel, onBack: () -> Unit, onSelect: (Train) -> Unit) {
     val trains = vm.trains
     Scaffold(topBar = { RailTopBar("${vm.fromCode} → ${vm.toCode}", onBack) }) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7))) {
+        Column(Modifier.fillMaxSize().padding(pad).background(Color.Transparent)) {
             Text(
                 "${if (vm.searchLoading) "Searching…" else "${trains.size} trains"}  •  ${vm.journeyDate}  •  ${vm.quotaCode()}",
                 modifier = Modifier.padding(16.dp),
@@ -104,7 +104,7 @@ fun AvailabilityScreen(vm: AppViewModel, onBack: () -> Unit, onVacancy: (TrainCl
     val train = vm.selectedTrain ?: return
     LaunchedEffect(train.number) { vm.loadAvailability(train) }
     Scaffold(topBar = { RailTopBar(train.name, onBack) }) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7)).padding(16.dp)) {
+        Column(Modifier.fillMaxSize().padding(pad).background(Color.Transparent).padding(16.dp)) {
             Text("${train.number}  •  ${train.fromCode} → ${train.toCode}  •  ${vm.journeyDate}", color = Color.Gray, fontSize = 13.sp)
             Text("Live seat availability (RailRadar)", color = Color.Gray, fontSize = 12.sp)
             Spacer(Modifier.height(12.dp))
@@ -134,7 +134,7 @@ fun VacancyChartScreen(vm: AppViewModel, onBack: () -> Unit, onBook: () -> Unit)
     val cls = vm.selectedTravelClass ?: return
     LaunchedEffect(cls.code) { vm.loadVacancyChart(cls) }
     Scaffold(topBar = { RailTopBar("Vacancy chart • ${cls.code}", onBack) }) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).background(Color(0xFFEEF2F7)).padding(16.dp)) {
+        Column(Modifier.fillMaxSize().padding(pad).background(Color.Transparent).padding(16.dp)) {
             Text("${train.number} ${train.name}", fontWeight = FontWeight.Bold, color = Navy)
             Text("Quota ${vm.quotaCode()}  •  fare ₹${vm.vacancy?.fare ?: cls.fare}", color = Color.Gray, fontSize = 13.sp)
             Spacer(Modifier.height(12.dp))

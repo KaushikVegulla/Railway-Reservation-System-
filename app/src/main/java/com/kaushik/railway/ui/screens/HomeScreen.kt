@@ -52,7 +52,7 @@ import com.kaushik.railway.data.MockData
 import com.kaushik.railway.ui.components.OrangeButton
 import com.kaushik.railway.ui.components.RailCard
 import com.kaushik.railway.ui.components.TricolorStrip
-import com.kaushik.railway.ui.theme.Cream
+import com.kaushik.railway.ui.theme.LiquidGlassBackdrop
 import com.kaushik.railway.ui.theme.Mute
 import com.kaushik.railway.ui.theme.Navy
 import com.kaushik.railway.ui.theme.NavyDark
@@ -67,8 +67,14 @@ fun HomeScreen(
     onRunning: () -> Unit,
     onBookings: () -> Unit
 ) {
-    Column(Modifier.fillMaxSize().background(Cream)) {
-        Column(Modifier.fillMaxWidth().background(Navy).statusBarsPadding()) {
+    LiquidGlassBackdrop {
+        Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .background(Navy.copy(alpha = 0.82f))
+                .statusBarsPadding()
+        ) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -160,6 +166,7 @@ fun HomeScreen(
                 modifier = Modifier.padding(vertical = 16.dp)
             )
         }
+        }
     }
 }
 
@@ -217,8 +224,8 @@ private fun SimpleSelect(label: String, value: String, options: List<String>, on
 private fun ServiceTile(line1: String, line2: String, icon: ImageVector, modifier: Modifier, onClick: () -> Unit) {
     Column(
         modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.White.copy(alpha = 0.42f))
             .clickable(onClick = onClick)
             .padding(vertical = 12.dp, horizontal = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally

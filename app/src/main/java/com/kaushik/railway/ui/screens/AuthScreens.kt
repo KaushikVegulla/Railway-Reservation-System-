@@ -41,6 +41,8 @@ import com.kaushik.railway.data.AuthApi
 import com.kaushik.railway.data.UnverifiedException
 import com.kaushik.railway.ui.components.LabeledField
 import com.kaushik.railway.ui.components.OrangeButton
+import com.kaushik.railway.ui.components.RailCard
+import com.kaushik.railway.ui.theme.LiquidGlassBackdrop
 import com.kaushik.railway.ui.theme.Navy
 import com.kaushik.railway.ui.theme.Orange
 import kotlinx.coroutines.Dispatchers
@@ -90,10 +92,13 @@ fun LoginScreen(vm: AppViewModel, onLogin: () -> Unit, onRegister: () -> Unit, o
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    LiquidGlassBackdrop {
     Column(
-        Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).systemBarsPadding().padding(24.dp).verticalScroll(rememberScrollState()),
+        Modifier.fillMaxSize().systemBarsPadding().padding(24.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.Center
     ) {
+        RailCard {
+        Column {
         Text("RailOne login", color = Navy, fontSize = 28.sp, fontWeight = FontWeight.Bold)
         Text("Email and password", color = Color.Gray, fontSize = 14.sp)
         Spacer(Modifier.height(24.dp))
@@ -128,6 +133,9 @@ fun LoginScreen(vm: AppViewModel, onLogin: () -> Unit, onRegister: () -> Unit, o
         TextButton(onClick = onRegister, modifier = Modifier.fillMaxWidth()) {
             Text("New user? Register here", color = Orange)
         }
+        }
+        }
+    }
     }
 }
 
@@ -139,9 +147,12 @@ fun RegisterScreen(vm: AppViewModel, onNeedVerify: (String) -> Unit, onBack: () 
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    LiquidGlassBackdrop {
     Column(
-        Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).systemBarsPadding().padding(24.dp).verticalScroll(rememberScrollState())
+        Modifier.fillMaxSize().systemBarsPadding().padding(24.dp).verticalScroll(rememberScrollState())
     ) {
+        RailCard {
+        Column {
         Text("Create account", color = Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Text("We’ll send a 6-digit verification code", color = Color.Gray, fontSize = 14.sp)
         Spacer(Modifier.height(16.dp))
@@ -173,6 +184,9 @@ fun RegisterScreen(vm: AppViewModel, onNeedVerify: (String) -> Unit, onBack: () 
             }
         }
         TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back to login", color = Navy) }
+        }
+        }
+    }
     }
 }
 
@@ -195,7 +209,7 @@ fun VerifyEmailScreen(vm: AppViewModel, email: String, onVerified: () -> Unit, o
     }
     val scope = rememberCoroutineScope()
     Column(
-        Modifier.fillMaxSize().background(Color(0xFFEEF2F7)).systemBarsPadding().padding(24.dp).verticalScroll(rememberScrollState())
+        Modifier.fillMaxSize().background(Color.Transparent).systemBarsPadding().padding(24.dp).verticalScroll(rememberScrollState())
     ) {
         Text("Verify email", color = Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
         Text(info, color = Color.Gray, fontSize = 14.sp)

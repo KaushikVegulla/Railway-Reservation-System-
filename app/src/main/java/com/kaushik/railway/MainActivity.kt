@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kaushik.railway.ui.theme.LiquidGlassBackdrop
 import com.kaushik.railway.ui.theme.Navy
 import com.kaushik.railway.ui.theme.Orange
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -98,6 +99,7 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
     val tabs = setOf(Routes.Home, Routes.Bookings, Routes.Pnr, Routes.More)
     val showBar = route in tabs
 
+    LiquidGlassBackdrop {
     Column(Modifier.fillMaxSize()) {
         NavHost(
             navController = nav,
@@ -193,7 +195,11 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
             }
         }
         if (showBar) {
-            Surface(color = Color.White, shadowElevation = 8.dp, modifier = Modifier.navigationBarsPadding()) {
+            Surface(
+                color = Color.White.copy(alpha = 0.55f),
+                shadowElevation = 16.dp,
+                modifier = Modifier.navigationBarsPadding()
+            ) {
                 Column {
                     HorizontalDivider(color = Color(0xFFE0E0E0))
                     Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -213,6 +219,7 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
                 }
             }
         }
+    }
     }
 }
 
