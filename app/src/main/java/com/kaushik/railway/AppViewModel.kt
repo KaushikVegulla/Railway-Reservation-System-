@@ -204,12 +204,6 @@ class AppViewModel : ViewModel() {
             ?: stationSuggestions.find { it.code == code }?.let { "${it.name} (${it.code})" }
             ?: code
 
-     {
-        val tmp = fromCode
-        fromCode = toCode
-        toCode = tmp
-    }
-
     fun quotaCode() = selectedQuota.take(2)
 
     fun searchTrainsLive() {
