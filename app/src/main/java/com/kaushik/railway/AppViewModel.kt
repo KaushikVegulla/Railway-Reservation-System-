@@ -11,19 +11,18 @@ import com.kaushik.railway.data.Booking
 import com.kaushik.railway.data.MockData
 import com.kaushik.railway.data.Passenger
 import com.kaushik.railway.data.PnrResult
-import com.kaushik.railway.data.RailKitClient
 import com.kaushik.railway.data.RunningStop
+import com.kaushik.railway.data.SessionStore
 import com.kaushik.railway.data.Station
 import com.kaushik.railway.data.Train
 import com.kaushik.railway.data.TrainClassAvail
 import com.kaushik.railway.data.db.AppDatabase
+import com.kaushik.railway.data.repository.AuthRepository
 import com.kaushik.railway.data.repository.BookingRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import com.kaushik.railway.data.repository.TrainRepository
+import com.kaushik.railway.util.UiState
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -31,28 +30,35 @@ import kotlin.random.Random
 
 class AppViewModel : ViewModel() {
 
-    private val bookingRepo: BookingRepository by lazy {
-        BookingRepository(AppDatabase.getInstance(RailApp.instance))
-    }
+    private val sessionStore = SessionStore(RailApp.instance)
+    private val bookingRepo = BookingRepository(AppDatabase.getInstance(RailApp.instance))
+    private val trainRepo = TrainRepository()
+    private val authRepo = AuthRepository(sessionStore)
 
+    // Auth / session
     var loggedIn by mutableStateOf(false)
-    var userId by mutableStateOf("demo_user")
-    var userName by mutableStateOf("Kaushik Vegulla")
+    var userName by mutableStateOf("")
+    var userEmail by mutableStateOf("")
+    var userMobile by mutableStateOf("")
+    var authLoading by mutableStateOf(false)
+    var authError by mutableStateOf<String?>(null)
+    var needsVerification by mutableStateOf(false)
+    var pendingVerifyEmail by mutableStateOf("")
 
+    // Search
     var fromCode by mutableStateOf("NDLS")
     var toCode by mutableStateOf("MMCT")
     var journeyDate by mutableStateOf(defaultDate())
     var selectedClass by mutableStateOf("All Classes")
     var selectedQuota by mutableStateOf("GN - General")
+    var returnDate by mutableStateOf<String?>(null) // Phase 4: return journey support
 
     var selectedTrain by mutableStateOf<Train?>(null)
     var selectedTravelClass by mutableStateOf<TrainClassAvail?>(null)
     var vacancy by mutableStateOf<AvailabilityResult?>(null)
     var passengers = mutableStateListOf(Passenger())
-    var mobile by mutableStateOf("9876543210")
-    var email by mutableStateOf("kaushik@example.com")
-    var otpEmailed by mutableStateOf(true)
-    var otpDisplayCode by mutableStateOf<String?>(null)
+    var mobile by mutableStateOf("")
+    var email by mutableStateOf("")
     var insurance by mutableStateOf(true)
     var lastBooking by mutableStateOf<Booking?>(null)
     val bookings = mutableStateListOf<Booking>()
@@ -76,7 +82,23 @@ class AppViewModel : ViewModel() {
 
     val stationSuggestions = mutableStateListOf<Station>()
 
+    // Seat / berth preferences (enhanced)
+    val berthOptions = listOf("No Preference", "Lower", "Middle", "Upper", "Side Lower", "Side Upper")
+    val genderOptions = listOf("Male", "Female", "Other")
+    val concessionOptions = listOf("None", "Senior Citizen", "Student", "Divyangjan")
+
     init {
+        // Restore session from DataStore
+        viewModelScope.launch {
+            authRepo.sessionFlow.collectLatest { session ->
+                loggedIn = session.loggedIn
+                userName = session.name
+                userEmail = session.email
+                userMobile = session.mobile
+                if (session.mobile.isNotBlank()) mobile = session.mobile
+                if (session.email.isNotBlank()) email = session.email
+            }
+        }
         // Load persisted bookings
         viewModelScope.launch {
             bookingRepo.observeBookings().collectLatest { list ->
@@ -86,6 +108,77 @@ class AppViewModel : ViewModel() {
         }
     }
 
+    // ── Auth ──────────────────────────────────────────────
+    fun register(name: String, email: String, password: String, onSuccess: () -> Unit) {
+        authLoading = true
+        authError = null
+        viewModelScope.launch {
+            val result = authRepo.register(name, email, password)
+            authLoading = false
+            if (result.success) {
+                pendingVerifyEmail = email
+                needsVerification = true
+                onSuccess()
+            } else {
+                authError = result.error ?: "Registration failed"
+            }
+        }
+    }
+
+    fun verifyEmail(code: String, onSuccess: () -> Unit) {
+        authLoading = true
+        authError = null
+        viewModelScope.launch {
+            val result = authRepo.verifyEmail(pendingVerifyEmail, code)
+            authLoading = false
+            if (result.success) {
+                needsVerification = false
+                onSuccess()
+            } else {
+                authError = result.error ?: "Verification failed"
+            }
+        }
+    }
+
+    fun login(email: String, password: String, onSuccess: () -> Unit) {
+        authLoading = true
+        authError = null
+        viewModelScope.launch {
+            val result = authRepo.login(email, password)
+            authLoading = false
+            if (result.success) {
+                onSuccess()
+            } else if (result.needsVerification) {
+                pendingVerifyEmail = email
+                needsVerification = true
+                authError = result.error
+            } else {
+                authError = result.error ?: "Login failed"
+            }
+        }
+    }
+
+    fun resendCode() {
+        viewModelScope.launch {
+            authRepo.resendCode(pendingVerifyEmail)
+        }
+    }
+
+    fun logout(onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            authRepo.logout()
+            onDone()
+        }
+    }
+
+    fun updateProfile(name: String, mobile: String) {
+        viewModelScope.launch {
+            authRepo.updateProfile(name, mobile)
+            this@AppViewModel.mobile = mobile
+        }
+    }
+
+    // ── Search / Trains ───────────────────────────────────
     fun stationName(code: String) =
         MockData.stations.find { it.code == code }?.let { "${it.name} (${it.code})" }
             ?: stationSuggestions.find { it.code == code }?.let { "${it.name} (${it.code})" }
@@ -104,16 +197,13 @@ class AppViewModel : ViewModel() {
         searchError = null
         trains.clear()
         viewModelScope.launch {
-            try {
-                val result = withContext(Dispatchers.IO) {
-                    RailKitClient.searchTrains(fromCode, toCode, toApiDate(journeyDate))
-                }
-                trains.addAll(result)
-                if (result.isEmpty()) searchError = "No trains found for this route/date."
-            } catch (e: Exception) {
+            val result = trainRepo.searchTrains(fromCode, toCode, toApiDate(journeyDate))
+            searchLoading = false
+            result.onSuccess { list ->
+                trains.addAll(list)
+                if (list.isEmpty()) searchError = "No trains found for this route/date."
+            }.onFailure { e ->
                 searchError = e.message ?: "Search failed"
-            } finally {
-                searchLoading = false
             }
         }
     }
@@ -128,26 +218,16 @@ class AppViewModel : ViewModel() {
             val classes = if (selectedClass == "All Classes") {
                 listOf("1A", "2A", "3A", "3E", "SL", "CC", "EC", "2S")
             } else listOf(selectedClass)
-            val quota = quotaCode()
-            val date = toApiDate(journeyDate)
-            val fetched = withContext(Dispatchers.IO) {
-                classes.map { cls ->
-                    async {
-                        cls to runCatching {
-                            val av = RailKitClient.getAvailability(
-                                train.number, train.fromCode, train.toCode, date, cls, quota
-                            )
-                            TrainClassAvail(cls, className(cls), av.fare, av.status, 0)
-                        }
-                    }
-                }.awaitAll()
-            }
-            classRows.addAll(fetched.mapNotNull { it.second.getOrNull() })
-            if (classRows.isEmpty()) {
-                availError = fetched.mapNotNull { it.second.exceptionOrNull()?.message }.firstOrNull()
-                    ?: "No availability for ${train.fromCode} → ${train.toCode}."
-            }
+            val result = trainRepo.loadClassAvailability(
+                train, toApiDate(journeyDate), classes, quotaCode()
+            )
             availLoading = false
+            result.onSuccess { list ->
+                classRows.addAll(list)
+                if (list.isEmpty()) availError = "No availability for ${train.fromCode} → ${train.toCode}."
+            }.onFailure { e ->
+                availError = e.message
+            }
         }
     }
 
@@ -155,16 +235,12 @@ class AppViewModel : ViewModel() {
         selectedTravelClass = cls
         val train = selectedTrain ?: return
         viewModelScope.launch {
-            try {
-                vacancy = withContext(Dispatchers.IO) {
-                    RailKitClient.getAvailability(
-                        train.number, train.fromCode, train.toCode,
-                        toApiDate(journeyDate), cls.code, quotaCode()
-                    )
-                }
-            } catch (e: Exception) {
-                availError = e.message
-            }
+            val result = trainRepo.getVacancy(
+                train.number, train.fromCode, train.toCode,
+                toApiDate(journeyDate), cls.code, quotaCode()
+            )
+            result.onSuccess { vacancy = it }
+                .onFailure { availError = it.message }
         }
     }
 
@@ -173,13 +249,10 @@ class AppViewModel : ViewModel() {
         pnrError = null
         pnrResult = null
         viewModelScope.launch {
-            try {
-                pnrResult = withContext(Dispatchers.IO) { RailKitClient.checkPnr(pnr) }
-            } catch (e: Exception) {
-                pnrError = e.message ?: "PNR lookup failed"
-            } finally {
-                pnrLoading = false
-            }
+            val result = trainRepo.checkPnr(pnr)
+            pnrLoading = false
+            result.onSuccess { pnrResult = it }
+                .onFailure { pnrError = it.message ?: "PNR lookup failed" }
         }
     }
 
@@ -188,22 +261,18 @@ class AppViewModel : ViewModel() {
         runningError = null
         runningStops.clear()
         viewModelScope.launch {
-            try {
-                val date = toApiDate(journeyDate)
-                val stops = withContext(Dispatchers.IO) { RailKitClient.trackTrain(trainNo, date) }
+            val result = trainRepo.trackTrain(trainNo, toApiDate(journeyDate))
+            runningLoading = false
+            result.onSuccess { stops ->
                 runningStops.addAll(stops)
                 runningNote = if (stops.isEmpty()) "No live timeline for this train." else "Live from RailRadar"
-            } catch (e: Exception) {
-                runningError = e.message
-            } finally {
-                runningLoading = false
-            }
+            }.onFailure { runningError = it.message }
         }
     }
 
     fun searchStations(query: String) {
         viewModelScope.launch {
-            val found = withContext(Dispatchers.IO) { RailKitClient.searchStations(query) }
+            val found = trainRepo.searchStations(query)
             stationSuggestions.clear()
             stationSuggestions.addAll(found)
         }
@@ -227,7 +296,7 @@ class AppViewModel : ViewModel() {
             date = journeyDate,
             quota = quotaCode(),
             passengers = passengers.toList(),
-            contact = mobile,
+            contact = mobile.ifBlank { userMobile },
             status = "PAID",
             amount = amount,
             fromName = stationName(fromCode),
@@ -236,18 +305,25 @@ class AppViewModel : ViewModel() {
             orderId = orderId
         )
         lastBooking = booking
-        // Persist to Room
-        viewModelScope.launch {
-            bookingRepo.save(booking)
-        }
+        viewModelScope.launch { bookingRepo.save(booking) }
         return booking
     }
 
     fun cancel(pnr: String) {
-        viewModelScope.launch {
-            bookingRepo.cancel(pnr)
-        }
+        viewModelScope.launch { bookingRepo.cancel(pnr) }
         if (lastBooking?.pnr == pnr) lastBooking = lastBooking?.copy(status = "CANCELLED")
+    }
+
+    fun addPassenger() {
+        if (passengers.size < 6) passengers.add(Passenger())
+    }
+
+    fun removePassenger(index: Int) {
+        if (passengers.size > 1 && index in passengers.indices) passengers.removeAt(index)
+    }
+
+    fun updatePassenger(index: Int, p: Passenger) {
+        if (index in passengers.indices) passengers[index] = p
     }
 
     companion object {
@@ -274,18 +350,6 @@ class AppViewModel : ViewModel() {
             } catch (_: Exception) {
                 display
             }
-        }
-
-        fun className(code: String) = when (code) {
-            "SL" -> "Sleeper"
-            "3A" -> "AC 3 Tier"
-            "2A" -> "AC 2 Tier"
-            "1A" -> "AC First"
-            "3E" -> "AC 3 Economy"
-            "CC" -> "Chair Car"
-            "2S" -> "Second Sitting"
-            "EC" -> "Executive"
-            else -> code
         }
     }
 }

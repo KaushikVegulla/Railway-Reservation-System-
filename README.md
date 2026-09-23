@@ -1,123 +1,135 @@
-# Railway Reservation System (RailOne) v1.1
+# Railway Reservation System (RailOne) v1.2
 
 Android app inspired by **RailOne (CRIS)** / IRCTC Rail Connect.
 
 Academic demo — **not affiliated with IRCTC, CRIS, or Indian Railways**.
 
-Repository: https://github.com/KaushikVegulla/Railway-Reservation-System-
+**Repo:** https://github.com/KaushikVegulla/Railway-Reservation-System-
 
 ---
 
-## What's New in v1.1 (Improvement Plan Phase 0–2)
+## v1.2 — Full improvement pass
 
-### Security (Critical)
-- **RailRadar API key** moved out of source → injected via `BuildConfig` from `local.properties`.
-- **Razorpay KEY_SECRET removed from the Android app**. All order creation + signature verification now go through the backend only.
-- Secrets are never committed (see `local.properties.example`).
+### Security ✅
+- RailRadar API key via `BuildConfig` + `local.properties` (never in source)
+- Razorpay **KEY_SECRET removed from the app** — create-order + verify only via backend
+- Secrets gitignored
 
-### Architecture & Persistence
-- Added **Room database** for permanent booking history.
-- Introduced `BookingRepository` + `BookingEntity` / `BookingDao`.
-- `AppViewModel` now loads and saves bookings via the repository (survives app restarts).
-- Cleaner separation of concerns ready for further repository/UseCase expansion.
+### Architecture ✅
+- `TrainRepository`, `BookingRepository`, `AuthRepository`
+- `SessionStore` (DataStore Preferences) for login persistence
+- `UiState` sealed class for future expansion
+- Cleaner ViewModel that delegates to repositories
 
-### Version
-- `versionName = 1.1.0`, `versionCode = 2`
+### Persistence ✅
+- **Room** database for bookings (survives app restart)
+- **DataStore** for user session (name, email, mobile, logged-in)
+
+### Features ✅
+- Editable **Profile** screen (name + mobile)
+- **Berth preference chips** on passenger form
+- Add / remove passengers (up to 6)
+- Booking cancel with **confirmation** step
+- Session restore on cold start
+- Auth flows wired to backend + DataStore
+
+### Backend
+- Python server for auth (Resend OTP) + Razorpay
+- Starts even without Razorpay keys (auth still works)
 
 ---
 
-## Features
+## Features overview
 
 | Area | How it works |
 |------|--------------|
-| Register / login | Name, email, password. 6-digit code via **Resend**. |
-| Train search | Live **RailRadar** between stations |
+| Register / login | Email + password, 6-digit OTP via Resend |
+| Session | Persisted with DataStore |
+| Train search | Live RailRadar |
 | Seat vacancy | 14-day chart + fare |
-| PNR / live status | RailRadar enquiry |
-| Payment | **Razorpay** test checkout via backend (UPI, cards, netbanking) |
-| Ticket | Local e-ticket after verified payment + **persisted in Room** |
+| PNR / live status | RailRadar |
+| Passengers | Multi-pax, berth chips, concessions |
+| Payment | Razorpay test via backend |
+| Ticket | Local e-ticket + Room persistence |
+| Profile | Edit name/mobile, logout |
+| Bookings | History + cancel with confirm |
 
 ---
 
 ## Setup
 
-### 1. Clone & open in Android Studio
+### 1. Clone
 ```bash
 git clone https://github.com/KaushikVegulla/Railway-Reservation-System-.git
 ```
 
-### 2. Configure secrets
+### 2. Secrets (`local.properties`)
 ```bash
 cp local.properties.example local.properties
-# Edit local.properties and set:
-#   railradar.api.key=rg_xxxxx
+```
+```properties
+sdk.dir=/path/to/Android/sdk
+railradar.api.key=rg_your_key_here
+# optional:
+# backend.base.url=http://10.0.2.2:8088
 ```
 
-### 3. Backend (required for payments & optional for auth)
+### 3. Backend
 ```bash
 cd backend
-# Create .env with:
-#   RAZORPAY_KEY_ID=rzp_test_...
+# .env:
+#   RAZORPAY_KEY_ID=...
 #   RAZORPAY_KEY_SECRET=...
-#   RESEND_API_KEY=re_...
-#   RESEND_FROM=RailOne <you@yourdomain.com>
+#   RESEND_API_KEY=...
+#   RESEND_FROM=RailOne <you@domain.com>
 python3 server.py
 ```
-Default port **8088**. Emulator reaches it at `http://10.0.2.2:8088`.
+Port **8088**. Emulator → `http://10.0.2.2:8088`.
 
-### 4. Run the app
-Android Studio → Gradle sync → Run on device/emulator.
-
-Min SDK 24 · Target SDK 35 · Java 17
+### 4. Run
+Android Studio → Sync → Run.  
+Min SDK 24 · Target 35 · version **1.2.0**
 
 Test card: `4111 1111 1111 1111`, any future expiry, any CVV.
 
 ---
 
-## Project layout (updated)
+## Project layout
 
 ```
 app/src/main/java/com/kaushik/railway/
+  AppViewModel.kt
   MainActivity.kt
-  AppViewModel.kt          # now uses BookingRepository
   RailApp.kt
   data/
-    Models.kt
-    RailKitClient.kt       # API key from BuildConfig
-    PaymentApi.kt          # all secrets via backend
-    MockData.kt
-    db/
-      AppDatabase.kt
-      BookingEntity.kt
-      BookingDao.kt
-    repository/
-      BookingRepository.kt
-  ui/screens/              # Auth, Home, Trains, Booking, Enquiry
-backend/                   # Python server (auth + Razorpay)
+    AuthApi.kt
+    SessionStore.kt          # DataStore session
+    PaymentApi.kt            # backend-only secrets
+    RailKitClient.kt         # BuildConfig API key
+    Models.kt / MockData.kt
+    db/                      # Room
+    repository/              # Auth, Booking, Train
+  util/UiState.kt
+  ui/screens/ ...
+backend/server.py
 ```
 
 ---
 
-## Remaining Roadmap (to full production-quality demo)
+## Remaining (optional future)
 
-| Phase | Status | Items |
-|-------|--------|-------|
-| 0 Security | ✅ Done | API key + Razorpay secret out of client |
-| 1 Architecture | 🟡 Partial | Repository for bookings; full Hilt + UseCases next |
-| 2 Persistence | ✅ Done | Room for bookings; DataStore for session next |
-| 3 Backend upgrade | ⬜ | FastAPI + PostgreSQL / proper JWT |
-| 4 Features | ⬜ | Seat map, better cancellation, FCM, profile, return journey |
-| 5 UX polish | ⬜ | Skeletons, offline, accessibility |
-| 6 Testing & release | ⬜ | Unit/UI tests, CI, Crashlytics, Play Store |
+| Item | Notes |
+|------|--------|
+| Hilt DI | Can replace manual repository construction |
+| Seat map visual grid | Currently preference chips |
+| FCM notifications | Train status / booking alerts |
+| FastAPI + Postgres | Replace file-based users.json |
+| Offline cache | Station / recent trains |
+| Unit + UI tests | JUnit / Compose |
+| CI (GitHub Actions) | Build on PR |
 
 ---
 
 ## Disclaimer
 
-UI and train data are for learning only. Do not use this for real reservations.
-
----
-
-## License
-
-Academic / educational use.
+For learning only. Do not use for real reservations.

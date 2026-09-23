@@ -74,13 +74,38 @@ fun PassengerScreen(vm: AppViewModel, onBack: () -> Unit, onContinue: () -> Unit
                         LabeledField("Gender (Male/Female/Other)", p.gender, onValue = { value -> vm.passengers[i] = p.copy(gender = value) })
                         Spacer(Modifier.height(8.dp))
                         LabeledField("Berth preference", p.berth, onValue = { value -> vm.passengers[i] = p.copy(berth = value) })
-                        Text("Options: ${MockData.berths.joinToString()}", color = Color.Gray, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                        Text(
+                            "Tap options below or type. Preferred: Lower / Middle / Upper / Side Lower / Side Upper",
+                            color = Color.Gray,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                        Row(
+                            Modifier.fillMaxWidth().padding(top = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf("Lower", "Middle", "Upper", "Side Lower").forEach { opt ->
+                                OutlinedButton(
+                                    onClick = { vm.passengers[i] = p.copy(berth = opt) },
+                                    modifier = Modifier.height(32.dp)
+                                ) {
+                                    Text(opt, fontSize = 11.sp)
+                                }
+                            }
+                        }
                     }
                 }
             }
-            if (vm.passengers.size < 6) {
-                OutlinedButton(onClick = { vm.passengers.add(Passenger()) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Add passenger")
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (vm.passengers.size < 6) {
+                    OutlinedButton(onClick = { vm.addPassenger() }, modifier = Modifier.weight(1f)) {
+                        Text("Add passenger")
+                    }
+                }
+                if (vm.passengers.size > 1) {
+                    OutlinedButton(onClick = { vm.removePassenger(vm.passengers.lastIndex) }, modifier = Modifier.weight(1f)) {
+                        Text("Remove last")
+                    }
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -327,24 +352,52 @@ fun TicketScreen(vm: AppViewModel, onHome: () -> Unit) {
 
 @Composable
 fun BookingsScreen(vm: AppViewModel, onBack: () -> Unit) {
+    var confirmPnr by remember { mutableStateOf<String?>(null) }
     Scaffold(topBar = { RailTopBar("My bookings", onBack) }) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).background(Color.Transparent).padding(16.dp)) {
+        Column(
+            Modifier.fillMaxSize().padding(pad).background(Color.Transparent)
+                .verticalScroll(rememberScrollState()).padding(16.dp)
+        ) {
             if (vm.bookings.isEmpty()) {
                 Text("No bookings yet. Search trains to book a ticket.", color = Color.Gray)
             } else {
+                Text("${vm.bookings.size} booking(s)", color = Color.Gray, fontSize = 13.sp)
+                Spacer(Modifier.height(8.dp))
                 vm.bookings.forEach { b ->
                     RailCard(Modifier.padding(bottom = 10.dp)) {
                         Column {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("PNR ${b.pnr}", fontWeight = FontWeight.Bold, color = Orange)
-                                Text(b.status, fontWeight = FontWeight.Bold, color = Navy)
+                                Text(
+                                    b.status,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (b.status == "CANCELLED") Color.Gray else Navy
+                                )
                             }
                             Text("${b.train.number} ${b.train.name}", color = Navy)
                             Text("${b.fromName} → ${b.toName}", fontSize = 13.sp, color = Color.Gray)
                             Text("${b.date}  •  ${b.travelClass.code}  •  ₹${b.amount}", fontSize = 13.sp)
+                            if (b.paymentId.isNotBlank()) {
+                                Text("Payment: ${b.paymentId.take(12)}…", fontSize = 11.sp, color = Color.Gray)
+                            }
                             if (b.status != "CANCELLED") {
                                 Spacer(Modifier.height(8.dp))
-                                OutlinedButton(onClick = { vm.cancel(b.pnr) }) { Text("Cancel ticket") }
+                                if (confirmPnr == b.pnr) {
+                                    Text("Cancel this ticket? (demo — no real refund)", fontSize = 12.sp, color = Color.Gray)
+                                    Spacer(Modifier.height(6.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedButton(onClick = { vm.cancel(b.pnr); confirmPnr = null }) {
+                                            Text("Yes, cancel", color = Color.Red)
+                                        }
+                                        OutlinedButton(onClick = { confirmPnr = null }) {
+                                            Text("Keep ticket")
+                                        }
+                                    }
+                                } else {
+                                    OutlinedButton(onClick = { confirmPnr = b.pnr }) {
+                                        Text("Cancel ticket")
+                                    }
+                                }
                             }
                         }
                     }

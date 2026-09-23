@@ -359,7 +359,9 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     if not KEY_ID or not KEY_SECRET:
-        raise SystemExit("Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in backend/.env")
+        print("WARNING: RAZORPAY keys missing — payment endpoints will fail. Auth still works.")
+    if not RESEND_API_KEY:
+        print("WARNING: RESEND_API_KEY missing — email OTP will fail.")
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"RailOne backend listening on http://0.0.0.0:{PORT}")
     print("  POST /register       {name, email, password}")

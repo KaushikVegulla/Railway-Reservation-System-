@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,18 +51,16 @@ fun PnrScreen(vm: AppViewModel, onBack: () -> Unit) {
                 Spacer(Modifier.height(16.dp))
                 RailCard {
                     Column {
-                        Text("PNR ${b.pnr}", fontWeight = FontWeight.Black, color = Orange, fontSize = 20.sp)
-                        Spacer(Modifier.height(6.dp))
-                        StatusChip(b.chart.ifBlank { "Live" })
-                        Spacer(Modifier.height(8.dp))
+                        Text("PNR ${b.pnr}", fontWeight = FontWeight.Bold, color = Navy, fontSize = 18.sp)
                         KeyValue("Train", "${b.trainNo} ${b.trainName}")
                         KeyValue("From", b.fromName)
                         KeyValue("To", b.toName)
                         KeyValue("Date", b.date)
                         KeyValue("Class / Quota", "${b.travelClass} / ${b.quota}")
-                        KeyValue("Fare", "₹${b.fare}")
+                        KeyValue("Chart", b.chart)
+                        if (b.fare > 0) KeyValue("Fare", "₹${b.fare}")
                         Spacer(Modifier.height(8.dp))
-                        b.passengers.forEach { Text(it, fontSize = 13.sp, color = Navy) }
+                        b.passengers.forEach { Text(it, fontSize = 13.sp, color = Color.DarkGray) }
                     }
                 }
             }
@@ -71,18 +70,18 @@ fun PnrScreen(vm: AppViewModel, onBack: () -> Unit) {
 
 @Composable
 fun RunningStatusScreen(vm: AppViewModel, onBack: () -> Unit) {
-    var trainNo by remember { mutableStateOf("12904") }
-    Scaffold(topBar = { RailTopBar("Live running status", onBack) }) { pad ->
+    var trainNo by remember { mutableStateOf("") }
+    Scaffold(topBar = { RailTopBar("Live train status", onBack) }) { pad ->
         Column(
             Modifier.fillMaxSize().padding(pad).background(Color.Transparent).verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
-            LabeledField("Train number", trainNo, onValue = { trainNo = it.filter { ch -> ch.isDigit() }.take(5) })
+            LabeledField("Train number", trainNo, onValue = { trainNo = it.filter { c -> c.isDigit() }.take(5) })
             Spacer(Modifier.height(12.dp))
-            OrangeButton("GET LIVE STATUS") { vm.loadRunning(trainNo) }
-            if (vm.runningLoading) Text("Fetching live timeline…", color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
+            OrangeButton("TRACK NOW") { vm.loadRunning(trainNo) }
+            if (vm.runningLoading) Text("Fetching live status…", color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
             vm.runningError?.let { Text(it, color = Color.Red, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
             if (vm.runningNote.isNotBlank()) {
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(vm.runningNote, fontWeight = FontWeight.Bold, color = Navy)
             }
             vm.runningStops.forEach { stop ->
@@ -91,6 +90,9 @@ fun RunningStatusScreen(vm: AppViewModel, onBack: () -> Unit) {
                         Column(Modifier.weight(1f)) {
                             Text("${stop.station} (${stop.code})", fontWeight = FontWeight.SemiBold, color = Navy)
                             Text("Arr ${stop.schArr}   Dep ${stop.schDep}", fontSize = 12.sp, color = Color.Gray)
+                            if (stop.delayMin != 0) {
+                                Text("Delay: ${stop.delayMin} min", fontSize = 12.sp, color = Orange)
+                            }
                         }
                         StatusChip(stop.status)
                     }
@@ -101,19 +103,66 @@ fun RunningStatusScreen(vm: AppViewModel, onBack: () -> Unit) {
 }
 
 @Composable
-fun ProfileScreen(onBack: () -> Unit, userId: String, userName: String, email: String, mobile: String, onLogout: () -> Unit) {
+fun ProfileScreen(
+    vm: AppViewModel,
+    onBack: () -> Unit,
+    onLogout: () -> Unit
+) {
+    var editName by remember { mutableStateOf(vm.userName) }
+    var editMobile by remember { mutableStateOf(vm.userMobile.ifBlank { vm.mobile }) }
+    var saved by remember { mutableStateOf(false) }
+
     Scaffold(topBar = { RailTopBar("My profile", onBack) }) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).background(Color.Transparent).padding(16.dp)) {
+        Column(
+            Modifier.fillMaxSize().padding(pad).background(Color.Transparent)
+                .verticalScroll(rememberScrollState()).padding(16.dp)
+        ) {
             RailCard {
                 Column {
-                    KeyValue("Name", userName)
-                    KeyValue("User ID", userId)
-                    KeyValue("Email", email)
-                    KeyValue("Mobile", mobile)
+                    Text("Account", fontWeight = FontWeight.Bold, color = Navy, fontSize = 16.sp)
+                    Spacer(Modifier.height(8.dp))
+                    KeyValue("Email", vm.userEmail.ifBlank { "—" })
+                    KeyValue("Status", if (vm.loggedIn) "Signed in" else "Guest")
                 }
             }
             Spacer(Modifier.height(16.dp))
+            RailCard {
+                Column {
+                    Text("Edit profile", fontWeight = FontWeight.Bold, color = Navy, fontSize = 16.sp)
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = editName,
+                        onValueChange = { editName = it; saved = false },
+                        label = { Text("Full name") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = editMobile,
+                        onValueChange = { editMobile = it.filter { c -> c.isDigit() }.take(10); saved = false },
+                        label = { Text("Mobile") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OrangeButton("SAVE CHANGES") {
+                        vm.updateProfile(editName.trim(), editMobile)
+                        saved = true
+                    }
+                    if (saved) {
+                        Text("Profile updated", color = Color(0xFF2E7D32), fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
             OrangeButton("LOGOUT", onClick = onLogout)
+            Text(
+                "RailOne academic demo. Bookings are stored locally on this device.",
+                color = Color.Gray,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(top = 16.dp)
+            )
         }
     }
 }

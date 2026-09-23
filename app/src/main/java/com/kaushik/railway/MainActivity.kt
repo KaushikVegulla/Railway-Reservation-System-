@@ -177,12 +177,13 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
             composable(Routes.Bookings) { BookingsScreen(vm, onBack = { if (!nav.popBackStack()) nav.navigate(Routes.Home) }) }
             composable(Routes.Profile) {
                 ProfileScreen(
+                    vm = vm,
                     onBack = { nav.popBackStack() },
-                    userId = vm.userId,
-                    userName = vm.userName,
-                    email = vm.email,
-                    mobile = vm.mobile,
-                    onLogout = { vm.loggedIn = false; nav.navigate(Routes.Login) { popUpTo(0) { inclusive = true } } }
+                    onLogout = {
+                        vm.logout {
+                            nav.navigate(Routes.Login) { popUpTo(0) { inclusive = true } }
+                        }
+                    }
                 )
             }
             composable(Routes.More) {

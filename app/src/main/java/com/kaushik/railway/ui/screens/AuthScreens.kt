@@ -38,6 +38,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kaushik.railway.AppViewModel
 import com.kaushik.railway.data.AuthApi
+import com.kaushik.railway.data.SessionStore
+import com.kaushik.railway.RailApp
 import com.kaushik.railway.data.UnverifiedException
 import com.kaushik.railway.ui.components.LabeledField
 import com.kaushik.railway.ui.components.OrangeButton
@@ -113,9 +115,11 @@ fun LoginScreen(vm: AppViewModel, onLogin: () -> Unit, onRegister: () -> Unit, o
             scope.launch {
                 try {
                     val user = withContext(Dispatchers.IO) { AuthApi.login(email.trim(), pass) }
+                    withContext(Dispatchers.IO) {
+                        SessionStore(RailApp.instance).saveSession(user.name, user.email)
+                    }
                     vm.userName = user.name
                     vm.email = user.email
-                    vm.userId = user.email
                     vm.loggedIn = true
                     onLogin()
                 } catch (e: UnverifiedException) {
@@ -234,11 +238,12 @@ fun VerifyEmailScreen(vm: AppViewModel, email: String, onVerified: () -> Unit, o
             scope.launch {
                 try {
                     val user = withContext(Dispatchers.IO) { AuthApi.verifyEmail(email, code) }
+                    withContext(Dispatchers.IO) {
+                        SessionStore(RailApp.instance).saveSession(user.name.ifBlank { vm.userName }, user.email)
+                    }
                     vm.userName = user.name.ifBlank { vm.userName }
                     vm.email = user.email
-                    vm.userId = user.email
                     vm.loggedIn = true
-                    vm.otpDisplayCode = null
                     onVerified()
                 } catch (e: Exception) {
                     error = e.message
