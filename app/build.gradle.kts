@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -12,8 +13,22 @@ android {
         applicationId = "com.kaushik.railway"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1.0"
+
+        // RailRadar API key — set in local.properties as railradar.api.key=rg_xxxxx
+        // Never commit the real key.
+        val localPropsFile = rootProject.file("local.properties")
+        val localProps = java.util.Properties()
+        if (localPropsFile.exists()) {
+            localProps.load(localPropsFile.inputStream())
+        }
+        val railradarKey = localProps.getProperty("railradar.api.key") ?: "YOUR_RAILRADAR_API_KEY"
+        buildConfigField("String", "RAILRADAR_API_KEY", "\"$railradarKey\"")
+
+        // Backend base URL (emulator default). Override in local.properties if needed.
+        val backendUrl = localProps.getProperty("backend.base.url") ?: "http://10.0.2.2:8088"
+        buildConfigField("String", "BACKEND_BASE_URL", "\"$backendUrl\"")
     }
 
     buildTypes {
@@ -34,6 +49,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -53,6 +69,13 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.razorpay.checkout)
+
+    // Persistence
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
+    implementation(libs.androidx.datastore.preferences)
+
     debugImplementation(libs.androidx.ui.tooling)
     testImplementation(libs.junit)
 }

@@ -1,5 +1,6 @@
 package com.kaushik.railway.data
 
+import com.kaushik.railway.BuildConfig
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -13,10 +14,12 @@ import java.util.concurrent.TimeUnit
 /**
  * RailRadar REST client — https://api.railradar.in/v1
  * Auth: Authorization: Bearer <key>
+ *
+ * API key is injected via BuildConfig (from local.properties).
+ * Never hardcode production keys in source.
  */
 object RailKitClient {
     private const val BASE = "https://api.railradar.in/v1"
-    private const val API_KEY = "rg_27bdae37f34b4dd29a38dda71882394d"
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -168,7 +171,6 @@ object RailKitClient {
 
     fun trackTrain(trainNo: String, date: String): List<RunningStop> {
         val no = padTrain(trainNo)
-        // Omit date so RailRadar auto-detects the current run (docs default).
         val root = getJson("/trains/$no/live?haltsOnly=true")
         if (!root.optBoolean("success", false)) {
             throw IllegalStateException(errorMessage(root, "Live status failed"))
@@ -308,11 +310,17 @@ object RailKitClient {
 
     private class AuthInterceptor : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
-            val signed = chain.request().newBuilder()
-                .header("Authorization", "Bearer $API_KEY")
+            val key = BuildConfig.RAILRADAR_API_KEY
+            if (key.isBlank() || key == "YOUR_RAILRADAR_API_KEY") {
+                throw IllegalStateException(
+                    "RailRadar API key not configured. Add railradar.api.key=rg_xxxxx to local.properties"
+                )
+            }
+            val req = chain.request().newBuilder()
+                .header("Authorization", "Bearer $key")
                 .header("Accept", "application/json")
                 .build()
-            return chain.proceed(signed)
+            return chain.proceed(req)
         }
     }
 }

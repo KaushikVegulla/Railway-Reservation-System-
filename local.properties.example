@@ -1,0 +1,10 @@
+# Copy this file to local.properties and fill in your keys.
+# local.properties is gitignored — never commit real secrets.
+
+sdk.dir=/path/to/Android/sdk
+
+# Get a key from https://railradar.in (or your provider)
+railradar.api.key=rg_your_key_here
+
+# Optional: override backend URL (default is Android emulator loopback)
+# backend.base.url=http://10.0.2.2:8088

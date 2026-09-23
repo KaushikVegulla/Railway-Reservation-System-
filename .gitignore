@@ -18,3 +18,10 @@ replay_pid*
 !gradle/wrapper/gradle-wrapper.jar
 backend/.env
 backend/users.json
+
+# Secrets
+local.properties
+*.keystore
+*.jks
+backend/.env
+backend/users.json

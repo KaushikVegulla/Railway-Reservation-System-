@@ -16,9 +16,12 @@ import com.kaushik.railway.data.RunningStop
 import com.kaushik.railway.data.Station
 import com.kaushik.railway.data.Train
 import com.kaushik.railway.data.TrainClassAvail
+import com.kaushik.railway.data.db.AppDatabase
+import com.kaushik.railway.data.repository.BookingRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -27,6 +30,11 @@ import java.util.Locale
 import kotlin.random.Random
 
 class AppViewModel : ViewModel() {
+
+    private val bookingRepo: BookingRepository by lazy {
+        BookingRepository(AppDatabase.getInstance(RailApp.instance))
+    }
+
     var loggedIn by mutableStateOf(false)
     var userId by mutableStateOf("demo_user")
     var userName by mutableStateOf("Kaushik Vegulla")
@@ -67,6 +75,16 @@ class AppViewModel : ViewModel() {
     var runningNote by mutableStateOf("")
 
     val stationSuggestions = mutableStateListOf<Station>()
+
+    init {
+        // Load persisted bookings
+        viewModelScope.launch {
+            bookingRepo.observeBookings().collectLatest { list ->
+                bookings.clear()
+                bookings.addAll(list)
+            }
+        }
+    }
 
     fun stationName(code: String) =
         MockData.stations.find { it.code == code }?.let { "${it.name} (${it.code})" }
@@ -218,13 +236,17 @@ class AppViewModel : ViewModel() {
             orderId = orderId
         )
         lastBooking = booking
-        bookings.add(0, booking)
+        // Persist to Room
+        viewModelScope.launch {
+            bookingRepo.save(booking)
+        }
         return booking
     }
 
     fun cancel(pnr: String) {
-        val i = bookings.indexOfFirst { it.pnr == pnr }
-        if (i >= 0) bookings[i] = bookings[i].copy(status = "CANCELLED")
+        viewModelScope.launch {
+            bookingRepo.cancel(pnr)
+        }
         if (lastBooking?.pnr == pnr) lastBooking = lastBooking?.copy(status = "CANCELLED")
     }
 
