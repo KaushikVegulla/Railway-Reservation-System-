@@ -404,6 +404,7 @@ fun TicketScreen(vm: AppViewModel, onHome: () -> Unit) {
 }
 
 
+@Composable
 fun BookingsScreen(vm: AppViewModel, onBack: () -> Unit) {
     var confirmPnr by remember { mutableStateOf<String?>(null) }
     Scaffold(topBar = { RailTopBar("My bookings", onBack) }) { pad ->
