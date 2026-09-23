@@ -15,10 +15,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -35,6 +37,8 @@ import com.kaushik.railway.ui.components.OrangeButton
 import com.kaushik.railway.ui.components.RailCard
 import com.kaushik.railway.ui.components.RailTopBar
 import com.kaushik.railway.ui.components.StatusChip
+import com.kaushik.railway.ui.components.SeatMapGrid
+import com.kaushik.railway.ui.components.demoSeatMap
 import com.kaushik.railway.ui.theme.Navy
 import com.kaushik.railway.ui.theme.Orange
 
@@ -134,9 +138,20 @@ fun VacancyChartScreen(vm: AppViewModel, onBack: () -> Unit, onBook: () -> Unit)
     val cls = vm.selectedTravelClass ?: return
     LaunchedEffect(cls.code) { vm.loadVacancyChart(cls) }
     Scaffold(topBar = { RailTopBar("Vacancy chart • ${cls.code}", onBack) }) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad).background(Color.Transparent).padding(16.dp)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(pad)
+                .background(Color.Transparent)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
+        ) {
             Text("${train.number} ${train.name}", fontWeight = FontWeight.Bold, color = Navy)
-            Text("Quota ${vm.quotaCode()}  •  fare ₹${vm.vacancy?.fare ?: cls.fare}", color = Color.Gray, fontSize = 13.sp)
+            Text(
+                "Quota ${vm.quotaCode()}  •  fare ₹${vm.vacancy?.fare ?: cls.fare}",
+                color = Color.Gray,
+                fontSize = 13.sp
+            )
             Spacer(Modifier.height(12.dp))
             val days = vm.vacancy?.days.orEmpty()
             if (days.isEmpty()) {
@@ -144,7 +159,10 @@ fun VacancyChartScreen(vm: AppViewModel, onBack: () -> Unit, onBook: () -> Unit)
             } else {
                 days.forEach { day ->
                     RailCard(Modifier.padding(bottom = 8.dp)) {
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
                             Column(Modifier.weight(1f)) {
                                 Text(day.date, fontWeight = FontWeight.Bold, color = Navy)
                                 Text(day.prediction, fontSize = 12.sp, color = Color.Gray)
@@ -152,6 +170,34 @@ fun VacancyChartScreen(vm: AppViewModel, onBack: () -> Unit, onBook: () -> Unit)
                             StatusChip(day.text.ifBlank { day.status })
                         }
                     }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            RailCard {
+                val seats = remember(cls.code) { demoSeatMap(cls.code) }
+                SeatMapGrid(
+                    seats = seats,
+                    selectedIds = vm.selectedSeatIds.toSet(),
+                    onToggle = { cell ->
+                        if (cell.status.name != "Booked") {
+                            vm.toggleSeat(cell.id, "${cell.id}/${cell.berth}")
+                        }
+                    }
+                )
+                if (vm.selectedSeatLabels.isNotBlank()) {
+                    Text(
+                        "Selected: ${vm.selectedSeatLabels}",
+                        fontSize = 12.sp,
+                        color = Navy,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                } else {
+                    Text(
+                        "Select up to ${vm.passengers.size} seat(s) (demo map)",
+                        fontSize = 12.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
                 }
             }
             Spacer(Modifier.height(12.dp))

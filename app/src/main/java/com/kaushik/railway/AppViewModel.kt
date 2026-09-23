@@ -60,6 +60,8 @@ class AppViewModel : ViewModel() {
     var mobile by mutableStateOf("")
     var email by mutableStateOf("")
     var insurance by mutableStateOf(true)
+    val selectedSeatIds = mutableStateListOf<String>()
+    var selectedSeatLabels by mutableStateOf("")
     var lastBooking by mutableStateOf<Booking?>(null)
     val bookings = mutableStateListOf<Booking>()
 
@@ -274,7 +276,17 @@ class AppViewModel : ViewModel() {
         viewModelScope.launch {
             val found = trainRepo.searchStations(query)
             stationSuggestions.clear()
-            stationSuggestions.addAll(found)
+            if (found.isNotEmpty()) {
+                stationSuggestions.addAll(found)
+            } else if (query.length >= 2) {
+                // Offline fallback from MockData
+                val q = query.lowercase()
+                stationSuggestions.addAll(
+                    MockData.stations.filter {
+                        it.code.lowercase().contains(q) || it.name.lowercase().contains(q)
+                    }.take(20)
+                )
+            }
         }
     }
 
@@ -312,6 +324,20 @@ class AppViewModel : ViewModel() {
     fun cancel(pnr: String) {
         viewModelScope.launch { bookingRepo.cancel(pnr) }
         if (lastBooking?.pnr == pnr) lastBooking = lastBooking?.copy(status = "CANCELLED")
+    }
+
+    fun toggleSeat(id: String, label: String) {
+        if (id in selectedSeatIds) {
+            selectedSeatIds.remove(id)
+        } else if (selectedSeatIds.size < passengers.size) {
+            selectedSeatIds.add(id)
+        }
+        selectedSeatLabels = selectedSeatIds.joinToString(", ")
+    }
+
+    fun clearSeats() {
+        selectedSeatIds.clear()
+        selectedSeatLabels = ""
     }
 
     fun addPassenger() {

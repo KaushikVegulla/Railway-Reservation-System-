@@ -125,6 +125,25 @@ fun HomeScreen(
                     SimpleSelect("Journey date / यात्रा तिथि", vm.journeyDate, AppViewModel.upcomingDates()) {
                         vm.journeyDate = it
                     }
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier.fillMaxWidth().clickable {
+                            vm.returnDate = if (vm.returnDate == null) AppViewModel.defaultDate() else null
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            if (vm.returnDate != null) "☑ Return journey" else "☐ Return journey (optional)",
+                            color = Navy,
+                            fontSize = 14.sp
+                        )
+                    }
+                    if (vm.returnDate != null) {
+                        Spacer(Modifier.height(8.dp))
+                        SimpleSelect("Return date", vm.returnDate ?: AppViewModel.defaultDate(), AppViewModel.upcomingDates()) {
+                            vm.returnDate = it
+                        }
+                    }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Box(Modifier.weight(1f)) {
                             SimpleSelect("Class", vm.selectedClass, listOf("All Classes") + MockData.classes) {

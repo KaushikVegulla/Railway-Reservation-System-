@@ -1,4 +1,4 @@
-# Railway Reservation System (RailOne) v1.2
+# Railway Reservation System (RailOne) v1.3
 
 Android app inspired by **RailOne (CRIS)** / IRCTC Rail Connect.
 
@@ -8,128 +8,80 @@ Academic demo — **not affiliated with IRCTC, CRIS, or Indian Railways**.
 
 ---
 
-## v1.2 — Full improvement pass
+## v1.3 highlights
 
-### Security ✅
-- RailRadar API key via `BuildConfig` + `local.properties` (never in source)
-- Razorpay **KEY_SECRET removed from the app** — create-order + verify only via backend
-- Secrets gitignored
+### Masked API keys (no backend required)
+All secrets live in **`local.properties`** (gitignored) and are injected via **BuildConfig**:
 
-### Architecture ✅
-- `TrainRepository`, `BookingRepository`, `AuthRepository`
-- `SessionStore` (DataStore Preferences) for login persistence
-- `UiState` sealed class for future expansion
-- Cleaner ViewModel that delegates to repositories
+| Property | Purpose |
+|----------|---------|
+| `railradar.api.key` | Live train / PNR / availability |
+| `razorpay.key.id` | Razorpay test key id |
+| `razorpay.key.secret` | Razorpay test secret (demo only) |
+| `use.local.keys=true` | Payments run on-device with masked keys |
 
-### Persistence ✅
-- **Room** database for bookings (survives app restart)
-- **DataStore** for user session (name, email, mobile, logged-in)
+**Nothing secret is committed to git.**
 
-### Features ✅
-- Editable **Profile** screen (name + mobile)
-- **Berth preference chips** on passenger form
-- Add / remove passengers (up to 6)
-- Booking cancel with **confirmation** step
-- Session restore on cold start
-- Auth flows wired to backend + DataStore
+### Features
+- Live RailRadar search, vacancy chart, PNR, running status  
+- **Interactive seat map** (demo coach layout)  
+- Multi-passenger + berth chips  
+- Optional **return journey** date  
+- Razorpay test checkout (local masked keys)  
+- Room booking history + cancel with confirm  
+- DataStore login session  
+- Auth works offline (local demo users) when no server is running  
+- Offline station suggestions from MockData  
+- Loading skeletons component  
+- Unit tests for core models  
 
-### Backend
-- Python server for auth (Resend OTP) + Razorpay
-- Starts even without Razorpay keys (auth still works)
-
----
-
-## Features overview
-
-| Area | How it works |
-|------|--------------|
-| Register / login | Email + password, 6-digit OTP via Resend |
-| Session | Persisted with DataStore |
-| Train search | Live RailRadar |
-| Seat vacancy | 14-day chart + fare |
-| PNR / live status | RailRadar |
-| Passengers | Multi-pax, berth chips, concessions |
-| Payment | Razorpay test via backend |
-| Ticket | Local e-ticket + Room persistence |
-| Profile | Edit name/mobile, logout |
-| Bookings | History + cancel with confirm |
+### Optional backend
+The existing `backend/` folder is **optional**. With `use.local.keys=true` the app does **not** need it for payments. Auth falls back to an in-memory local demo if the server is unreachable.
 
 ---
 
-## Setup
+## Quick setup
 
-### 1. Clone
 ```bash
 git clone https://github.com/KaushikVegulla/Railway-Reservation-System-.git
-```
-
-### 2. Secrets (`local.properties`)
-```bash
 cp local.properties.example local.properties
 ```
+
+Edit `local.properties`:
+
 ```properties
 sdk.dir=/path/to/Android/sdk
-railradar.api.key=rg_your_key_here
-# optional:
-# backend.base.url=http://10.0.2.2:8088
+railradar.api.key=rg_your_key
+razorpay.key.id=rzp_test_xxx
+razorpay.key.secret=your_test_secret
+use.local.keys=true
 ```
 
-### 3. Backend
-```bash
-cd backend
-# .env:
-#   RAZORPAY_KEY_ID=...
-#   RAZORPAY_KEY_SECRET=...
-#   RESEND_API_KEY=...
-#   RESEND_FROM=RailOne <you@domain.com>
-python3 server.py
-```
-Port **8088**. Emulator → `http://10.0.2.2:8088`.
+Open in Android Studio → Sync → Run.
 
-### 4. Run
-Android Studio → Sync → Run.  
-Min SDK 24 · Target 35 · version **1.2.0**
-
-Test card: `4111 1111 1111 1111`, any future expiry, any CVV.
+- Min SDK 24 · Target 35 · **version 1.3.0**
+- Test card: `4111 1111 1111 1111`, any future expiry, any CVV
 
 ---
 
-## Project layout
+## Layout
 
 ```
-app/src/main/java/com/kaushik/railway/
+app/.../railway/
   AppViewModel.kt
-  MainActivity.kt
-  RailApp.kt
   data/
-    AuthApi.kt
-    SessionStore.kt          # DataStore session
-    PaymentApi.kt            # backend-only secrets
-    RailKitClient.kt         # BuildConfig API key
-    Models.kt / MockData.kt
-    db/                      # Room
-    repository/              # Auth, Booking, Train
-  util/UiState.kt
-  ui/screens/ ...
-backend/server.py
+    AuthApi.kt          # backend + local demo fallback
+    PaymentApi.kt       # masked keys via BuildConfig
+    RailKitClient.kt
+    SessionStore.kt
+    db/  repository/
+  ui/components/SeatMap.kt
+  ui/screens/...
+backend/                # optional only
 ```
-
----
-
-## Remaining (optional future)
-
-| Item | Notes |
-|------|--------|
-| Hilt DI | Can replace manual repository construction |
-| Seat map visual grid | Currently preference chips |
-| FCM notifications | Train status / booking alerts |
-| FastAPI + Postgres | Replace file-based users.json |
-| Offline cache | Station / recent trains |
-| Unit + UI tests | JUnit / Compose |
-| CI (GitHub Actions) | Build on PR |
 
 ---
 
 ## Disclaimer
 
-For learning only. Do not use for real reservations.
+Learning project only. Do not use for real reservations. Client-side Razorpay secret is for **test keys** in an academic demo — never ship production secrets in an app.

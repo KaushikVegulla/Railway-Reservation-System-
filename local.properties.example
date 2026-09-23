@@ -1,10 +1,17 @@
-# Copy this file to local.properties and fill in your keys.
-# local.properties is gitignored — never commit real secrets.
+# Copy to local.properties and fill real values.
+# local.properties is gitignored — keys stay masked out of git.
 
 sdk.dir=/path/to/Android/sdk
 
-# Get a key from https://railradar.in (or your provider)
-railradar.api.key=rg_your_key_here
+# RailRadar (required for live train search)
+railradar.api.key=rg_xxxxxxxxxxxxxxxxxxxxxxxx
 
-# Optional: override backend URL (default is Android emulator loopback)
+# Razorpay test keys (client-side demo mode — no backend needed)
+razorpay.key.id=rzp_test_XXXXXXXX
+razorpay.key.secret=XXXXXXXXXXXXXXXX
+
+# true = use masked keys in app (no backend). false = call backend for payments.
+use.local.keys=true
+
+# Optional backend URL if use.local.keys=false
 # backend.base.url=http://10.0.2.2:8088

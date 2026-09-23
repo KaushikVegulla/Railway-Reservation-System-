@@ -184,3 +184,19 @@ fun SectionTitle(text: String) {
     Text(text, fontWeight = FontWeight.Bold, color = Navy, fontSize = 16.sp)
     Spacer(Modifier.height(8.dp))
 }
+
+@Composable
+fun LoadingSkeleton(lines: Int = 3, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth()) {
+        repeat(lines) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .padding(bottom = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFE0E0E0).copy(alpha = 0.6f))
+            )
+        }
+    }
+}

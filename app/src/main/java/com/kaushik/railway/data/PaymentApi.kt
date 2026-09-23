@@ -1,5 +1,6 @@
 package com.kaushik.railway.data
 
+import android.util.Base64
 import com.kaushik.railway.BuildConfig
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -7,6 +8,8 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 
 data class RazorOrder(
     val orderId: String,
@@ -16,8 +19,11 @@ data class RazorOrder(
 )
 
 /**
- * Payment API — ALL secret operations go through the backend.
- * The Android app never holds Razorpay KEY_SECRET.
+ * Payment API.
+ * Keys are MASKED — loaded from BuildConfig (local.properties), never hardcoded in source.
+ *
+ * use.local.keys=true  → create order + verify signature on device (demo, no backend)
+ * use.local.keys=false → proxy through optional backend
  */
 object PaymentApi {
     private val jsonType = "application/json; charset=utf-8".toMediaType()
@@ -28,37 +34,107 @@ object PaymentApi {
         .retryOnConnectionFailure(true)
         .build()
 
-    private val baseUrl: String
-        get() = BuildConfig.BACKEND_BASE_URL.trimEnd('/')
+    private val keyId get() = BuildConfig.RAZORPAY_KEY_ID
+    private val keySecret get() = BuildConfig.RAZORPAY_KEY_SECRET
+    private val useLocal get() = BuildConfig.USE_LOCAL_KEYS
+    private val baseUrl get() = BuildConfig.BACKEND_BASE_URL.trimEnd('/')
 
-    /**
-     * Creates a Razorpay order via backend.
-     * Backend holds the secret and returns order_id + key_id.
-     */
     fun createOrder(amountRupees: Int, receipt: String = "railone"): RazorOrder {
+        if (useLocal) return createOrderLocal(amountRupees, receipt)
+        return createOrderRemote(amountRupees, receipt)
+    }
+
+    fun verifyPayment(paymentId: String, orderId: String, signature: String): Boolean {
+        if (useLocal) return verifyLocal(paymentId, orderId, signature)
+        return verifyRemote(paymentId, orderId, signature)
+    }
+
+    // ── Local (masked keys in BuildConfig) ────────────────
+
+    private fun createOrderLocal(amountRupees: Int, receipt: String): RazorOrder {
+        requireConfigured()
+        val paise = amountRupees.coerceAtLeast(1) * 100
+        val safeReceipt = receipt.filter { it.isLetterOrDigit() || it == '_' }.take(40).ifBlank { "railone" }
+        val body = JSONObject()
+            .put("amount", paise)
+            .put("currency", "INR")
+            .put("receipt", safeReceipt)
+            .put("payment_capture", 1)
+            .toString()
+            .toRequestBody(jsonType)
+        val req = Request.Builder()
+            .url("https://api.razorpay.com/v1/orders")
+            .addHeader("Authorization", basicAuth())
+            .addHeader("Content-Type", "application/json")
+            .post(body)
+            .build()
+        http.newCall(req).execute().use { resp ->
+            val raw = resp.body?.string().orEmpty()
+            val root = JSONObject(raw.ifBlank { "{}" })
+            if (!resp.isSuccessful) {
+                val desc = root.optJSONObject("error")?.optString("description")
+                    ?: "Create order failed (${resp.code})"
+                throw IllegalStateException(desc)
+            }
+            val orderId = root.optString("id")
+            if (orderId.isBlank()) throw IllegalStateException("Razorpay did not return order id")
+            return RazorOrder(
+                orderId = orderId,
+                keyId = keyId,
+                amountPaise = root.optInt("amount", paise),
+                currency = root.optString("currency", "INR")
+            )
+        }
+    }
+
+    private fun verifyLocal(paymentId: String, orderId: String, signature: String): Boolean {
+        requireConfigured()
+        val msg = "$orderId|$paymentId"
+        val mac = Mac.getInstance("HmacSHA256")
+        mac.init(SecretKeySpec(keySecret.toByteArray(), "HmacSHA256"))
+        val expected = mac.doFinal(msg.toByteArray()).joinToString("") { "%02x".format(it) }
+        if (!expected.equals(signature, ignoreCase = true)) {
+            throw IllegalStateException("Invalid payment signature")
+        }
+        return true
+    }
+
+    private fun requireConfigured() {
+        if (keyId.isBlank() || keyId.contains("XXXX") ||
+            keySecret.isBlank() || keySecret.startsWith("YOUR_")
+        ) {
+            throw IllegalStateException(
+                "Razorpay keys not set. Add razorpay.key.id and razorpay.key.secret to local.properties"
+            )
+        }
+    }
+
+    private fun basicAuth(): String {
+        val token = Base64.encodeToString("$keyId:$keySecret".toByteArray(), Base64.NO_WRAP)
+        return "Basic $token"
+    }
+
+    // ── Optional remote backend ───────────────────────────
+
+    private fun createOrderRemote(amountRupees: Int, receipt: String): RazorOrder {
         val body = JSONObject()
             .put("amount", amountRupees.coerceAtLeast(1))
             .put("receipt", receipt)
             .toString()
             .toRequestBody(jsonType)
-
         val req = Request.Builder()
             .url("$baseUrl/create-order")
             .addHeader("Content-Type", "application/json")
             .post(body)
             .build()
-
         http.newCall(req).execute().use { resp ->
             val raw = resp.body?.string().orEmpty()
             val root = JSONObject(raw.ifBlank { "{}" })
             if (!resp.isSuccessful || !root.optBoolean("success", false)) {
-                val err = root.optString("error").ifBlank { "Create order failed (${resp.code})" }
-                throw IllegalStateException(err)
+                throw IllegalStateException(root.optString("error").ifBlank { "Create order failed" })
             }
-            val orderId = root.optString("order_id")
-            if (orderId.isBlank()) throw IllegalStateException("Backend did not return an order id")
             return RazorOrder(
-                orderId = orderId,
+                orderId = root.optString("order_id"),
                 keyId = root.optString("key_id"),
                 amountPaise = root.optInt("amount"),
                 currency = root.optString("currency", "INR")
@@ -66,30 +142,23 @@ object PaymentApi {
         }
     }
 
-    /**
-     * Verifies payment signature via backend.
-     * Backend performs HMAC-SHA256 check with the secret.
-     */
-    fun verifyPayment(paymentId: String, orderId: String, signature: String): Boolean {
+    private fun verifyRemote(paymentId: String, orderId: String, signature: String): Boolean {
         val body = JSONObject()
             .put("razorpay_payment_id", paymentId)
             .put("razorpay_order_id", orderId)
             .put("razorpay_signature", signature)
             .toString()
             .toRequestBody(jsonType)
-
         val req = Request.Builder()
             .url("$baseUrl/verify-payment")
             .addHeader("Content-Type", "application/json")
             .post(body)
             .build()
-
         http.newCall(req).execute().use { resp ->
             val raw = resp.body?.string().orEmpty()
             val root = JSONObject(raw.ifBlank { "{}" })
-            if (!resp.isSuccessful || !root.optBoolean("success", false) || !root.optBoolean("verified", false)) {
-                val err = root.optString("error").ifBlank { "Payment verification failed" }
-                throw IllegalStateException(err)
+            if (!resp.isSuccessful || !root.optBoolean("verified", false)) {
+                throw IllegalStateException(root.optString("error").ifBlank { "Verification failed" })
             }
             return true
         }
