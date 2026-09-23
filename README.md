@@ -1,4 +1,15 @@
-# Railway Reservation System (RailOne) v1.3
+# Railway Reservation System (RailOne) v1.4
+
+## v1.4.0 — Improvements (product plan)
+
+- **One-tap rebook** last journey on Home
+- **Saved passengers** load from last booking
+- **Offline-first search** — MockData fallback when API empty/fails
+- **System dark mode** support
+- **Share e-ticket** via Android share sheet
+- **Trust banners** — clear demo / not IRCTC ticket messaging
+- Keys stay masked in `local.properties` (no backend required)
+
 
 Android app inspired by **RailOne (CRIS)** / IRCTC Rail Connect.
 
@@ -8,7 +19,7 @@ Academic demo — **not affiliated with IRCTC, CRIS, or Indian Railways**.
 
 ---
 
-## v1.3 highlights
+## v1.4 highlights
 
 ### Masked API keys (no backend required)
 All secrets live in **`local.properties`** (gitignored) and are injected via **BuildConfig**:
@@ -59,7 +70,7 @@ use.local.keys=true
 
 Open in Android Studio → Sync → Run.
 
-- Min SDK 24 · Target 35 · **version 1.3.0**
+- Min SDK 24 · Target 35 · **version 1.4.0**
 - Test card: `4111 1111 1111 1111`, any future expiry, any CVV
 
 ---

@@ -47,6 +47,14 @@ fun TrainListScreen(vm: AppViewModel, onBack: () -> Unit, onSelect: (Train) -> U
     val trains = vm.trains
     Scaffold(topBar = { RailTopBar("${vm.fromCode} → ${vm.toCode}", onBack) }) { pad ->
         Column(Modifier.fillMaxSize().padding(pad).background(Color.Transparent)) {
+            if (vm.isOfflineHint) {
+                Text(
+                    "Showing offline demo trains (API unavailable or empty).",
+                    color = Color.Gray,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
             Text(
                 "${if (vm.searchLoading) "Searching…" else "${trains.size} trains"}  •  ${vm.journeyDate}  •  ${vm.quotaCode()}",
                 modifier = Modifier.padding(16.dp),

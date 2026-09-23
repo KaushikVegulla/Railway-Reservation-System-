@@ -12,6 +12,7 @@ import com.kaushik.railway.data.MockData
 import com.kaushik.railway.data.Passenger
 import com.kaushik.railway.data.PnrResult
 import com.kaushik.railway.data.RunningStop
+import com.kaushik.railway.data.LastJourney
 import com.kaushik.railway.data.SessionStore
 import com.kaushik.railway.data.Station
 import com.kaushik.railway.data.Train
@@ -54,7 +55,10 @@ class AppViewModel : ViewModel() {
     var journeyDate by mutableStateOf(defaultDate())
     var selectedClass by mutableStateOf("All Classes")
     var selectedQuota by mutableStateOf("GN - General")
-    var returnDate by mutableStateOf<String?>(null) // Phase 4: return journey support
+    var returnDate by mutableStateOf<String?>(null)
+    var lastJourney by mutableStateOf<LastJourney?>(null)
+    var savedPassengers = mutableStateListOf<Passenger>()
+    var isOfflineHint by mutableStateOf(false)
 
     var selectedTrain by mutableStateOf<Train?>(null)
     var selectedTravelClass by mutableStateOf<TrainClassAvail?>(null)
@@ -93,7 +97,6 @@ class AppViewModel : ViewModel() {
     val concessionOptions = listOf("None", "Senior Citizen", "Student", "Divyangjan")
 
     init {
-        // Restore session from DataStore
         viewModelScope.launch {
             authRepo.sessionFlow.collectLatest { session ->
                 loggedIn = session.loggedIn
@@ -104,7 +107,15 @@ class AppViewModel : ViewModel() {
                 if (session.email.isNotBlank()) email = session.email
             }
         }
-        // Load persisted bookings
+        viewModelScope.launch {
+            sessionStore.lastJourneyFlow.collectLatest { j -> lastJourney = j }
+        }
+        viewModelScope.launch {
+            sessionStore.savedPassengersFlow.collectLatest { list ->
+                savedPassengers.clear()
+                savedPassengers.addAll(list)
+            }
+        }
         viewModelScope.launch {
             bookingRepo.observeBookings().collectLatest { list ->
                 bookings.clear()
@@ -193,7 +204,7 @@ class AppViewModel : ViewModel() {
             ?: stationSuggestions.find { it.code == code }?.let { "${it.name} (${it.code})" }
             ?: code
 
-    fun swapStations() {
+     {
         val tmp = fromCode
         fromCode = toCode
         toCode = tmp
@@ -204,15 +215,21 @@ class AppViewModel : ViewModel() {
     fun searchTrainsLive() {
         searchLoading = true
         searchError = null
+        isOfflineHint = false
         trains.clear()
         viewModelScope.launch {
             val result = trainRepo.searchTrains(fromCode, toCode, toApiDate(journeyDate))
             searchLoading = false
             result.onSuccess { list ->
-                trains.addAll(list)
-                if (list.isEmpty()) searchError = "No trains found for this route/date."
-            }.onFailure { e ->
-                searchError = e.message ?: "Search failed"
+                if (list.isNotEmpty()) {
+                    trains.addAll(list)
+                } else {
+                    trains.addAll(MockData.trains(fromCode, toCode))
+                    isOfflineHint = true
+                }
+            }.onFailure {
+                trains.addAll(MockData.trains(fromCode, toCode))
+                isOfflineHint = true
             }
         }
     }
@@ -221,6 +238,7 @@ class AppViewModel : ViewModel() {
         selectedTrain = train
         availLoading = true
         availError = null
+        isOfflineHint = false
         classRows.clear()
         vacancy = null
         viewModelScope.launch {
@@ -232,10 +250,23 @@ class AppViewModel : ViewModel() {
             )
             availLoading = false
             result.onSuccess { list ->
-                classRows.addAll(list)
-                if (list.isEmpty()) availError = "No availability for ${train.fromCode} → ${train.toCode}."
-            }.onFailure { e ->
-                availError = e.message
+                if (list.isNotEmpty()) {
+                    classRows.addAll(list)
+                } else {
+                    classRows.addAll(
+                        train.classes.ifEmpty {
+                            MockData.trains(fromCode, toCode).firstOrNull()?.classes.orEmpty()
+                        }
+                    )
+                    isOfflineHint = true
+                }
+            }.onFailure {
+                classRows.addAll(
+                    train.classes.ifEmpty {
+                        MockData.trains(fromCode, toCode).firstOrNull()?.classes.orEmpty()
+                    }
+                )
+                isOfflineHint = true
             }
         }
     }
@@ -324,7 +355,20 @@ class AppViewModel : ViewModel() {
             orderId = orderId
         )
         lastBooking = booking
-        viewModelScope.launch { bookingRepo.save(booking) }
+        viewModelScope.launch {
+            bookingRepo.save(booking)
+            sessionStore.saveLastJourney(
+                LastJourney(
+                    fromCode = fromCode,
+                    toCode = toCode,
+                    classCode = cls.code,
+                    quota = selectedQuota,
+                    trainNumber = train.number,
+                    trainName = train.name
+                )
+            )
+            sessionStore.savePassengers(passengers.toList())
+        }
         return booking
     }
 
@@ -357,6 +401,29 @@ class AppViewModel : ViewModel() {
 
     fun updatePassenger(index: Int, p: Passenger) {
         if (index in passengers.indices) passengers[index] = p
+    }
+
+    /** One-tap rebook: restore last route into search form */
+    fun applyLastJourney() {
+        val j = lastJourney ?: return
+        if (j.fromCode.isNotBlank()) fromCode = j.fromCode
+        if (j.toCode.isNotBlank()) toCode = j.toCode
+        if (j.quota.isNotBlank()) selectedQuota = j.quota
+        if (j.classCode.isNotBlank()) selectedClass = j.classCode
+        journeyDate = defaultDate()
+    }
+
+    fun loadSavedPassengers() {
+        if (savedPassengers.isEmpty()) return
+        passengers.clear()
+        passengers.addAll(savedPassengers.map { it.copy() })
+        if (passengers.isEmpty()) passengers.add(Passenger())
+    }
+
+    fun swapStations() {
+        val tmp = fromCode
+        fromCode = toCode
+        toCode = tmp
     }
 
     companion object {

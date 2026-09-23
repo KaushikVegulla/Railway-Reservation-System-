@@ -1,5 +1,7 @@
 package com.kaushik.railway.ui.screens
 
+import android.content.Intent
+
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -22,6 +24,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +63,26 @@ fun PassengerScreen(vm: AppViewModel, onBack: () -> Unit, onContinue: () -> Unit
         Column(
             Modifier.fillMaxSize().padding(pad).background(Color.Transparent).verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
+            if (vm.savedPassengers.isNotEmpty()) {
+                RailCard(Modifier.padding(bottom = 12.dp)) {
+                    Column {
+                        Text("Saved passengers", fontWeight = FontWeight.Bold, color = Navy)
+                        Text(
+                            "${vm.savedPassengers.size} passenger(s) from your last booking",
+                            fontSize = 12.sp,
+                            color = Color.Gray
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        OrangeButton("LOAD SAVED PASSENGERS") { vm.loadSavedPassengers() }
+                    }
+                }
+            }
+            Text(
+                "Demo booking — not an official IRCTC ticket. For learning / portfolio use only.",
+                fontSize = 11.sp,
+                color = Color.Gray,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
             vm.passengers.forEachIndexed { i, p ->
                 RailCard(Modifier.padding(bottom = 12.dp)) {
                     Column {
@@ -316,41 +339,71 @@ private fun Context.findActivity(): Activity? {
 @Composable
 fun TicketScreen(vm: AppViewModel, onHome: () -> Unit) {
     val b = vm.lastBooking
+    val context = LocalContext.current
     Scaffold(topBar = { RailTopBar("e-Ticket") }) { pad ->
         Column(
             Modifier.fillMaxSize().padding(pad).background(Color.Transparent).verticalScroll(rememberScrollState()).padding(16.dp)
         ) {
             if (b == null) {
-                Text("No ticket")
+                Text("No ticket yet. Complete a booking first.", color = Color.Gray)
+                Spacer(Modifier.height(16.dp))
+                OrangeButton("BACK TO HOME") { onHome() }
             } else {
+                Text(
+                    "Demo e-ticket — not valid for travel on Indian Railways.",
+                    fontSize = 11.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
                 RailCard {
                     Column {
                         Text("PNR  ${b.pnr}", fontSize = 22.sp, fontWeight = FontWeight.Black, color = Orange)
                         Text(b.status, fontWeight = FontWeight.Bold, color = Navy, fontSize = 16.sp)
                         Spacer(Modifier.height(8.dp))
                         KeyValue("Train", "${b.train.number} ${b.train.name}")
-                        KeyValue("From", b.fromName)
-                        KeyValue("To", b.toName)
+                        KeyValue("Route", "${b.fromName} → ${b.toName}")
                         KeyValue("Date", b.date)
-                        KeyValue("Class", b.travelClass.code)
-                        KeyValue("Quota", b.quota)
+                        KeyValue("Class / Quota", "${b.travelClass.code} / ${b.quota}")
                         KeyValue("Amount", "₹${b.amount}")
-                        if (b.paymentId.isNotBlank()) KeyValue("Payment", b.paymentId)
-                        if (b.orderId.isNotBlank()) KeyValue("Order", b.orderId)
+                        if (b.paymentId.isNotBlank()) KeyValue("Payment ID", b.paymentId)
                         Spacer(Modifier.height(8.dp))
+                        SectionTitle("Passengers")
                         b.passengers.forEachIndexed { i, p ->
-                            Text("${i + 1}. ${p.name} (${p.age}, ${p.gender})", fontSize = 13.sp)
+                            Text(
+                                "${i + 1}. ${p.name}  ·  ${p.age}  ·  ${p.gender}  ·  ${p.berth}",
+                                fontSize = 13.sp,
+                                color = Navy
+                            )
                         }
                     }
                 }
-                Spacer(Modifier.height(16.dp))
-                OrangeButton("BACK TO HOME", onClick = onHome)
+                Spacer(Modifier.height(12.dp))
+                OrangeButton("SHARE TICKET") {
+                    val text = buildString {
+                        appendLine("RailOne Demo Ticket")
+                        appendLine("PNR: ${b.pnr}")
+                        appendLine("${b.train.number} ${b.train.name}")
+                        appendLine("${b.fromName} → ${b.toName}")
+                        appendLine("Date: ${b.date}  Class: ${b.travelClass.code}")
+                        appendLine("Amount: ₹${b.amount}")
+                        appendLine("Status: ${b.status}")
+                        appendLine("(Demo only — not an IRCTC ticket)")
+                    }
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, "RailOne PNR ${b.pnr}")
+                        putExtra(Intent.EXTRA_TEXT, text)
+                    }
+                    context.startActivity(Intent.createChooser(send, "Share ticket"))
+                }
+                Spacer(Modifier.height(8.dp))
+                OrangeButton("BACK TO HOME") { onHome() }
             }
         }
     }
 }
 
-@Composable
+
 fun BookingsScreen(vm: AppViewModel, onBack: () -> Unit) {
     var confirmPnr by remember { mutableStateOf<String?>(null) }
     Scaffold(topBar = { RailTopBar("My bookings", onBack) }) { pad ->

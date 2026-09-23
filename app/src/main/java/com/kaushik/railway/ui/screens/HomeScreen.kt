@@ -107,6 +107,30 @@ fun HomeScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp)
         ) {
+            // One-tap rebook last journey
+            vm.lastJourney?.let { j ->
+                if (j.fromCode.isNotBlank() && j.toCode.isNotBlank()) {
+                    RailCard(Modifier.padding(bottom = 10.dp)) {
+                        Column {
+                            Text("REBOOK LAST JOURNEY", fontWeight = FontWeight.Bold, color = Orange, fontSize = 12.sp, letterSpacing = 0.6.sp)
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                "${j.fromCode} → ${j.toCode}" + (if (j.trainName.isNotBlank()) "  ·  ${j.trainName}" else ""),
+                                color = Navy,
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 15.sp
+                            )
+                            if (j.classCode.isNotBlank()) {
+                                Text("${j.classCode}  ·  ${j.quota}", color = Mute, fontSize = 12.sp)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            OrangeButton("USE THIS ROUTE") {
+                                vm.applyLastJourney()
+                            }
+                        }
+                    }
+                }
+            }
             RailCard {
                 Column {
                     Text("BOOK TICKET", fontWeight = FontWeight.Bold, color = Navy, fontSize = 13.sp, letterSpacing = 0.8.sp)
