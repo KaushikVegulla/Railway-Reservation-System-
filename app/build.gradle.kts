@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -17,11 +19,10 @@ android {
         versionName = "1.3.0"
 
         // ── Masked secrets: set in local.properties (gitignored) ──
-        // Never put real keys in source code.
         val localPropsFile = rootProject.file("local.properties")
-        val localProps = java.util.Properties()
+        val localProps = Properties()
         if (localPropsFile.exists()) {
-            localProps.load(localPropsFile.inputStream())
+            localPropsFile.inputStream().use { localProps.load(it) }
         }
         fun prop(key: String, fallback: String) =
             localProps.getProperty(key)?.trim()?.takeIf { it.isNotEmpty() } ?: fallback
@@ -30,8 +31,8 @@ android {
         buildConfigField("String", "RAZORPAY_KEY_ID", "\"${prop("razorpay.key.id", "rzp_test_XXXXXXXX")}\"")
         buildConfigField("String", "RAZORPAY_KEY_SECRET", "\"${prop("razorpay.key.secret", "YOUR_RAZORPAY_SECRET")}\"")
         buildConfigField("String", "BACKEND_BASE_URL", "\"${prop("backend.base.url", "http://10.0.2.2:8088")}\"")
-        // When true, payments/auth use local keys only (no backend required)
-        buildConfigField("boolean", "USE_LOCAL_KEYS", prop("use.local.keys", "true"))
+        val useLocalKeys = prop("use.local.keys", "true").lowercase() in listOf("true", "1", "yes")
+        buildConfigField("boolean", "USE_LOCAL_KEYS", if (useLocalKeys) "true" else "false")
     }
 
     buildTypes {
@@ -47,8 +48,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
     buildFeatures {
         compose = true

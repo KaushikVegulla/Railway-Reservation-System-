@@ -123,6 +123,8 @@ class AppViewModel : ViewModel() {
             if (result.success) {
                 pendingVerifyEmail = email
                 needsVerification = true
+                otpEmailed = result.displayCode == null
+                otpDisplayCode = result.displayCode
                 onSuccess()
             } else {
                 authError = result.error ?: "Registration failed"
@@ -154,8 +156,10 @@ class AppViewModel : ViewModel() {
             if (result.success) {
                 onSuccess()
             } else if (result.needsVerification) {
-                pendingVerifyEmail = email
+                pendingVerifyEmail = result.email.ifBlank { email }
                 needsVerification = true
+                otpEmailed = result.displayCode == null
+                otpDisplayCode = result.displayCode
                 authError = result.error
             } else {
                 authError = result.error ?: "Login failed"
