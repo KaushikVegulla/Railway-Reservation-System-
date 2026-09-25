@@ -53,6 +53,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.atomic.AtomicBoolean
 
 private fun friendlyNetError(msg: String?): String {
     val m = msg.orEmpty()
@@ -63,10 +64,16 @@ private fun friendlyNetError(msg: String?): String {
 }
 
 @Composable
-fun SplashScreen(onDone: () -> Unit) {
+fun SplashScreen(ready: Boolean, onDone: () -> Unit) {
+    val gate = remember { AtomicBoolean(false) }
+    LaunchedEffect(ready) {
+        if (!ready || gate.get()) return@LaunchedEffect
+        delay(900)
+        if (gate.compareAndSet(false, true)) onDone()
+    }
     LaunchedEffect(Unit) {
-        delay(1400)
-        onDone()
+        delay(2500)
+        if (gate.compareAndSet(false, true)) onDone()
     }
     Box(
         Modifier
@@ -82,7 +89,7 @@ fun SplashScreen(onDone: () -> Unit) {
                 Icon(Icons.Default.Train, null, tint = Color.White, modifier = Modifier.size(48.dp))
             }
             Spacer(Modifier.height(16.dp))
-            Text("RailOne", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black)
+            Text("RailX", color = Color.White, fontSize = 28.sp, fontWeight = FontWeight.Black)
             Text("Centre for Railway Information Systems", color = Color(0xFFFFCC80), fontSize = 12.sp)
             Text("Indian Railways  •  e-Ticketing", color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
         }
@@ -283,39 +290,21 @@ fun VerifyEmailScreen(vm: AppViewModel, email: String, onVerified: () -> Unit, o
         OrangeButton(if (busy) "VERIFYING…" else "VERIFY & CONTINUE", enabled = !busy) {
             busy = true
             error = null
-            scope.launch {
-                try {
-                    val user = withContext(Dispatchers.IO) { AuthApi.verifyEmail(email, code) }
-                    withContext(Dispatchers.IO) {
-                        SessionStore(RailApp.instance).saveSession(user.name.ifBlank { vm.userName }, user.email)
-                    }
-                    vm.userName = user.name.ifBlank { vm.userName }
-                    vm.email = user.email
-                    vm.loggedIn = true
-                    onVerified()
-                } catch (e: Exception) {
-                    error = e.message
-                } finally {
-                    busy = false
-                }
+            vm.verifyEmail(code) { message ->
+                busy = false
+                if (message == null) onVerified() else error = message
             }
         }
         TextButton(
             onClick = {
                 scope.launch {
-                    try {
-                        val otp = withContext(Dispatchers.IO) { AuthApi.resendCode(email) }
-                        vm.otpEmailed = otp.emailed
-                        if (otp.emailed) {
-                            vm.otpDisplayCode = null
-                            info = "New code sent to $email"
+                    vm.resendCode { message ->
+                        if (message == null) {
+                            info = if (vm.otpEmailed) "New code sent to $email" else "A new in-app code is shown below."
+                            vm.otpDisplayCode?.let { code = it }
                         } else {
-                            vm.otpDisplayCode = otp.code
-                            code = otp.code
-                            info = "Email still blocked. New in-app code is shown below."
+                            error = message
                         }
-                    } catch (e: Exception) {
-                        error = e.message
                     }
                 }
             },

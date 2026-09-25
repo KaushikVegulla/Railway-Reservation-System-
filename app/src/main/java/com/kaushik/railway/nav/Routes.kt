@@ -3,6 +3,7 @@ package com.kaushik.railway.nav
 object Routes {
     const val Splash = "splash"
     const val Login = "login"
+    const val Unlock = "unlock"
     const val Register = "register"
     const val Activate = "activate"
     const val Mpin = "mpin"

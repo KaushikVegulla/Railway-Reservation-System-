@@ -244,7 +244,10 @@ fun PaymentScreen(vm: AppViewModel, onBack: () -> Unit, onSuccess: () -> Unit) {
                 PaymentBridge.onSuccess = { payId, orderId, sig ->
                     scope.launch {
                         try {
-                            withContext(Dispatchers.IO) { PaymentApi.verifyPayment(payId, orderId, sig) }
+                            withContext(Dispatchers.IO) {
+                                vm.refreshPaymentSession()
+                                PaymentApi.verifyPayment(payId, orderId, sig)
+                            }
                             vm.confirmBooking(payId, orderId)
                             busy = false
                             onSuccess()
@@ -261,16 +264,17 @@ fun PaymentScreen(vm: AppViewModel, onBack: () -> Unit, onSuccess: () -> Unit) {
                 scope.launch {
                     try {
                         val order = withContext(Dispatchers.IO) {
+                            vm.refreshPaymentSession()
                             PaymentApi.createOrder(
                                 total,
-                                "railone_${vm.fromCode}${vm.toCode}_${System.currentTimeMillis()}"
+                                "railx_${vm.fromCode}${vm.toCode}_${System.currentTimeMillis()}"
                             )
                         }
                         val options = JSONObject().apply {
                             put("key", order.keyId)
                             put("amount", order.amountPaise)
                             put("currency", order.currency)
-                            put("name", "RailOne")
+                            put("name", "RailX")
                             put("description", "${vm.fromCode} to ${vm.toCode} ticket")
                             put("order_id", order.orderId)
                             put("theme", JSONObject().put("color", "#0A3D91"))
@@ -380,7 +384,7 @@ fun TicketScreen(vm: AppViewModel, onHome: () -> Unit) {
                 Spacer(Modifier.height(12.dp))
                 OrangeButton("SHARE TICKET") {
                     val text = buildString {
-                        appendLine("RailOne Demo Ticket")
+                        appendLine("RailX Demo Ticket")
                         appendLine("PNR: ${b.pnr}")
                         appendLine("${b.train.number} ${b.train.name}")
                         appendLine("${b.fromName} → ${b.toName}")
@@ -391,7 +395,7 @@ fun TicketScreen(vm: AppViewModel, onHome: () -> Unit) {
                     }
                     val send = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_SUBJECT, "RailOne PNR ${b.pnr}")
+                        putExtra(Intent.EXTRA_SUBJECT, "RailX PNR ${b.pnr}")
                         putExtra(Intent.EXTRA_TEXT, text)
                     }
                     context.startActivity(Intent.createChooser(send, "Share ticket"))

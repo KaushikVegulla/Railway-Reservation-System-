@@ -198,6 +198,13 @@ object IrctcRules {
         return bytes.joinToString("") { "%02x".format(it) }
     }
 
+    fun toIndianE164(mobile: String): String? {
+        var digits = mobile.filter { it.isDigit() }
+        if (digits.length > 10 && digits.startsWith("91")) digits = digits.drop(2)
+        if (digits.length != 10 || digits.first() !in '6'..'9') return null
+        return "+91$digits"
+    }
+
     fun userIdFromEmail(email: String): String {
         val raw = email.substringBefore("@").filter { it.isLetterOrDigit() }
         val base = if (raw.firstOrNull()?.isLetter() == true) raw else "u$raw"

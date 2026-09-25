@@ -1,15 +1,17 @@
-# RailOne backend (auth + Razorpay test)
+# RailX backend (Cognito JWT + Razorpay test)
 
-## Auth (Resend email OTP)
+Account sign-up, email OTP, and sign-in are Amazon Cognito (user pool `RailX-Users` in `ap-south-1`).
 
-| API | Body | Notes |
-|---|---|---|
-| `POST /register` | `{name, email, password}` | Creates account, emails a 6-digit code |
-| `POST /verify-email` | `{email, code}` | Marks the account verified |
-| `POST /login` | `{email, password}` | 403 + `needsVerification` if email not verified |
-| `POST /resend-code` | `{email}` | Sends a new 10-minute OTP |
+`POST /register`, `/verify-email`, `/login`, and `/resend-code` return **410**. The Android app talks to Cognito directly.
 
-Resend’s onboarding sender (`beth.t@example.com`) can only deliver to the email on the Resend account. Verify a domain in Resend and set `RESEND_FROM` to send to any address.
+Payment routes require `Authorization: Bearer <Cognito ID token>` unless `COGNITO_REQUIRE_JWT=0`.
+
+| Env | Default |
+|---|---|
+| `COGNITO_REGION` | `ap-south-1` |
+| `COGNITO_USER_POOL_ID` | `ap-south-1_SspUmQyId` |
+| `COGNITO_CLIENT_ID` | `5s0vjm6vk4lttl2s326qh9mlmt` |
+| `COGNITO_REQUIRE_JWT` | `1` |
 
 ## Payments
 

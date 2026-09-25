@@ -88,7 +88,7 @@ fun HomeScreen(
                     Icon(Icons.Default.Train, null, tint = Color.White, modifier = Modifier.size(22.dp))
                 }
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                    Text("RailOne", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
+                    Text("RailX", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Black)
                     Text("Indian Railways  |  CRIS", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
                 }
                 Icon(Icons.Default.Notifications, null, tint = Color.White, modifier = Modifier.padding(end = 8.dp))

@@ -174,7 +174,7 @@ fun ProfileScreen(
             Spacer(Modifier.height(24.dp))
             OrangeButton("LOGOUT", onClick = onLogout)
             Text(
-                "RailOne academic demo. Bookings are stored locally on this device.",
+                "RailX academic demo. Bookings are stored locally on this device.",
                 color = Color.Gray,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(top = 16.dp)
@@ -194,7 +194,7 @@ fun MoreScreen(
 ) {
     Column(Modifier.fillMaxSize().background(Color.Transparent).padding(16.dp)) {
         Text("More", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Navy)
-        Text("RailOne  •  CRIS services", color = Color.Gray, fontSize = 13.sp)
+        Text("RailX  •  academic demo", color = Color.Gray, fontSize = 13.sp)
         Spacer(Modifier.height(12.dp))
         listOf(
             "PNR enquiry" to onPnr,

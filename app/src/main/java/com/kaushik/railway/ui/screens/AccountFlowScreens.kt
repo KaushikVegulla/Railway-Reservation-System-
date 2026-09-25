@@ -211,10 +211,7 @@ private fun ConfirmContactsStep(
     onNext: () -> Unit,
     onBack: () -> Unit
 ) {
-    LaunchedEffect(Unit) {
-        if (vm.regEmailOtp.isBlank() || vm.regMobileOtp.isBlank()) vm.issueOtps()
-    }
-    StepHeading(step, total, "Confirm email and mobile", "Check the user ID and masked contacts")
+    StepHeading(step, total, "Confirm email and mobile", "Cognito emails a code on the next step")
     RailCard {
         ColumnBlock {
             Text("User ID", color = Color.Gray, fontSize = 12.sp)
@@ -223,9 +220,12 @@ private fun ConfirmContactsStep(
             Text("Email  ${IrctcRules.maskEmail(vm.regEmail)}", color = Navy, fontSize = 14.sp)
             Text("Mobile  +91 ${IrctcRules.maskMobile(vm.regMobile)}", color = Navy, fontSize = 14.sp)
             Spacer(Modifier.height(12.dp))
-            Text("Demo codes — not sent to a real inbox or phone", color = Orange, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-            Text("Email OTP  ${vm.regEmailOtp}", color = Navy, fontWeight = FontWeight.Bold)
-            Text("Mobile OTP  ${vm.regMobileOtp}", color = Navy, fontWeight = FontWeight.Bold)
+            Text(
+                "The next step confirms the email code from Amazon Cognito. SMS OTP stays off until a TRAI DLT header is approved.",
+                color = Orange,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
             Spacer(Modifier.height(16.dp))
             OrangeButton("CONTINUE") { onNext() }
             TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back", color = Navy) }
@@ -245,47 +245,65 @@ private fun OtpStep(
     var mobileCode by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
-    StepHeading(step, total, "Enter email and mobile OTPs", "Use the demo codes from the previous step")
+    LaunchedEffect(Unit) {
+        vm.beginCognitoSignUp { message -> if (message != null) error = message }
+    }
+    StepHeading(
+        step,
+        total,
+        if (vm.useCognitoOtp) "Enter the email code" else "Enter email and mobile OTPs",
+        if (vm.useCognitoOtp) "Amazon Cognito sent this code" else "Demo codes, used only when Cognito is unreachable"
+    )
     RailCard {
         ColumnBlock {
+            if (vm.cognitoBusy) {
+                Text("Creating the RailX account and emailing a code…", color = Navy, fontSize = 14.sp)
+                Spacer(Modifier.height(8.dp))
+            }
             LabeledField("Email OTP", emailCode, keyboardType = KeyboardType.Number) {
                 emailCode = it.filter { ch -> ch.isDigit() }.take(6)
             }
-            Spacer(Modifier.height(8.dp))
-            LabeledField("Mobile OTP", mobileCode, keyboardType = KeyboardType.Number) {
-                mobileCode = it.filter { ch -> ch.isDigit() }.take(6)
+            if (!vm.useCognitoOtp) {
+                Spacer(Modifier.height(8.dp))
+                LabeledField("Mobile OTP", mobileCode, keyboardType = KeyboardType.Number) {
+                    mobileCode = it.filter { ch -> ch.isDigit() }.take(6)
+                }
+                Text(
+                    "Email ${vm.regEmailOtp}   ·   Mobile ${vm.regMobileOtp}",
+                    color = Orange,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            } else {
+                val where = vm.cognitoDelivery.ifBlank { vm.regEmail }
+                Text(
+                    "Code sent to $where. SMS is not sent yet.",
+                    color = Orange,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
             }
-            Text(
-                "Email ${vm.regEmailOtp}   ·   Mobile ${vm.regMobileOtp}",
-                color = Orange,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(top = 8.dp)
-            )
             error?.let { Text(it, color = Color.Red, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
             Spacer(Modifier.height(16.dp))
-            OrangeButton(if (busy) "PLEASE WAIT" else "VERIFY", enabled = !busy) {
-                error = when {
-                    !IrctcRules.otpMatches(vm.regEmailOtp, emailCode) -> "Email OTP does not match"
-                    !IrctcRules.otpMatches(vm.regMobileOtp, mobileCode) -> "Mobile OTP does not match"
-                    else -> null
-                }
-                if (error != null) return@OrangeButton
+            OrangeButton(if (busy || vm.cognitoBusy) "PLEASE WAIT" else "VERIFY", enabled = !busy && !vm.cognitoBusy) {
                 busy = true
-                vm.finishRegistration { message ->
+                error = null
+                vm.submitRegistrationCodes(emailCode, mobileCode) { message ->
                     busy = false
                     if (message == null) onNext() else error = message
                 }
             }
             TextButton(
                 onClick = {
-                    vm.issueOtps()
                     emailCode = ""
                     mobileCode = ""
                     error = null
+                    vm.resendRegistrationCode { message -> if (message != null) error = message }
                 },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Resend demo codes", color = Orange) }
+            ) { Text(if (vm.useCognitoOtp) "Resend email code" else "Resend demo codes", color = Orange) }
             TextButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back", color = Navy) }
         }
     }

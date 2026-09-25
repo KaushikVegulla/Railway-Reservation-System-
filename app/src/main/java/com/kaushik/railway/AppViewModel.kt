@@ -9,10 +9,13 @@ import androidx.lifecycle.viewModelScope
 import com.kaushik.railway.data.AccountStore
 import com.kaushik.railway.data.AvailabilityResult
 import com.kaushik.railway.data.Booking
+import com.kaushik.railway.data.CognitoAuth
+import com.kaushik.railway.data.CognitoCall
 import com.kaushik.railway.data.IrctcRules
 import com.kaushik.railway.data.LastJourney
 import com.kaushik.railway.data.MockData
 import com.kaushik.railway.data.Passenger
+import com.kaushik.railway.data.PaymentApi
 import com.kaushik.railway.data.PnrResult
 import com.kaushik.railway.data.ProfileDraft
 import com.kaushik.railway.data.RailProfile
@@ -25,10 +28,13 @@ import com.kaushik.railway.data.db.AppDatabase
 import com.kaushik.railway.data.repository.AuthRepository
 import com.kaushik.railway.data.repository.BookingRepository
 import com.kaushik.railway.data.repository.TrainRepository
+import com.kaushik.railway.nav.AccountGate
 import com.kaushik.railway.util.UiState
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -77,6 +83,15 @@ class AppViewModel : ViewModel() {
     var authError by mutableStateOf<String?>(null)
     var needsVerification by mutableStateOf(false)
     var pendingVerifyEmail by mutableStateOf("")
+    var gateReady by mutableStateOf(false)
+    var appUnlocked by mutableStateOf(false)
+    var cognitoBusy by mutableStateOf(false)
+    var useCognitoOtp by mutableStateOf(false)
+    var cognitoUsername by mutableStateOf("")
+    var cognitoDelivery by mutableStateOf("")
+    private var sessionSeen = false
+    private var cognitoPassword = ""
+    private var pendingPassword = ""
 
     // Search
     var fromCode by mutableStateOf("NDLS")
@@ -136,12 +151,15 @@ class AppViewModel : ViewModel() {
                 if (session.mobile.isNotBlank()) mobile = session.mobile
                 if (session.email.isNotBlank()) email = session.email
                 if (!session.loggedIn) clearAccountFlags() else refreshAccount()
+                sessionSeen = true
+                if (profilesReady) gateReady = true
             }
         }
         viewModelScope.launch {
             accountStore.profiles.collectLatest {
                 profilesReady = true
                 refreshAccount()
+                if (sessionSeen) gateReady = true
             }
         }
         viewModelScope.launch {
@@ -180,17 +198,54 @@ class AppViewModel : ViewModel() {
         }
     }
 
-    fun verifyEmail(code: String, onSuccess: () -> Unit) {
+    fun verifyEmail(code: String, onDone: (String?) -> Unit) {
         authLoading = true
         authError = null
         viewModelScope.launch {
+            if (cognitoUsername.isNotBlank()) {
+                val confirmed = CognitoAuth.confirm(cognitoUsername, code)
+                if (confirmed is CognitoCall.Err || confirmed is CognitoCall.Offline) {
+                    val message = (confirmed as? CognitoCall.Err)?.message
+                        ?: (confirmed as CognitoCall.Offline).message
+                    authLoading = false
+                    authError = message
+                    onDone(message)
+                    return@launch
+                }
+                val pass = pendingPassword
+                if (pass.isNotBlank()) {
+                    val signed = CognitoAuth.signIn(cognitoUsername, pass)
+                    pendingPassword = ""
+                    if (signed is CognitoCall.Ok) {
+                        adoptCognitoUser(signed.username, pass, signed.email, signed.name, signed.phone)
+                        appUnlocked = true
+                        needsVerification = false
+                        authLoading = false
+                        onDone(null)
+                        return@launch
+                    }
+                    val message = (signed as? CognitoCall.Err)?.message
+                        ?: (signed as? CognitoCall.Offline)?.message
+                        ?: "Confirmed. Sign in with your user ID."
+                    authLoading = false
+                    authError = message
+                    onDone(message)
+                    return@launch
+                }
+                needsVerification = false
+                authLoading = false
+                onDone(null)
+                return@launch
+            }
             val result = authRepo.verifyEmail(pendingVerifyEmail, code)
             authLoading = false
             if (result.success) {
                 needsVerification = false
-                onSuccess()
+                appUnlocked = true
+                onDone(null)
             } else {
                 authError = result.error ?: "Verification failed"
+                onDone(authError)
             }
         }
     }
@@ -215,17 +270,64 @@ class AppViewModel : ViewModel() {
         }
     }
 
-    fun resendCode() {
+    fun resendCode(onDone: (String?) -> Unit = {}) {
         viewModelScope.launch {
-            authRepo.resendCode(pendingVerifyEmail)
+            if (cognitoUsername.isNotBlank()) {
+                val call = CognitoAuth.resend(cognitoUsername)
+                if (call is CognitoCall.Ok) {
+                    otpEmailed = true
+                    otpDisplayCode = null
+                    cognitoDelivery = call.delivery
+                    onDone(null)
+                } else {
+                    onDone((call as? CognitoCall.Err)?.message ?: (call as? CognitoCall.Offline)?.message)
+                }
+                return@launch
+            }
+            val result = authRepo.resendCode(pendingVerifyEmail)
+            if (result.success) {
+                otpEmailed = result.displayCode == null
+                otpDisplayCode = result.displayCode
+                onDone(null)
+            } else {
+                onDone(result.error)
+            }
         }
     }
 
     fun logout(onDone: () -> Unit = {}) {
         viewModelScope.launch {
+            CognitoAuth.signOut()
+            PaymentApi.bearerToken = null
+            pendingPassword = ""
+            cognitoPassword = ""
+            cognitoUsername = ""
+            useCognitoOtp = false
             authRepo.logout()
+            appUnlocked = false
             onDone()
         }
+    }
+
+    fun gateDestination(): String = AccountGate.destination(
+        loggedIn = loggedIn,
+        profileComplete = profileComplete,
+        mpinSet = mpinSet,
+        mpinDeferred = mpinDeferred,
+        needsUnlock = loggedIn && biometricOn && !appUnlocked
+    )
+
+    fun verifyMpin(pin: String): Boolean {
+        val profile = currentProfile ?: return false
+        return IrctcRules.secretHash(profile.userId, "mpin:$pin") == profile.mpinHash
+    }
+
+    fun markUnlocked() {
+        appUnlocked = true
+    }
+
+    suspend fun refreshPaymentSession() {
+        PaymentApi.bearerToken = CognitoAuth.idToken()
     }
 
     fun updateProfile(name: String, mobile: String) {
@@ -255,6 +357,142 @@ class AppViewModel : ViewModel() {
         regStep = 0
         regIdMessage = ""
         regIdChecked = ""
+        useCognitoOtp = false
+        cognitoUsername = ""
+        cognitoDelivery = ""
+        cognitoBusy = false
+        cognitoPassword = ""
+    }
+
+    fun beginCognitoSignUp(onDone: (String?) -> Unit) {
+        if (useCognitoOtp && cognitoUsername.isNotBlank()) {
+            onDone(null)
+            return
+        }
+        cognitoBusy = true
+        viewModelScope.launch {
+            val phone = IrctcRules.toIndianE164(regMobile)
+            if (phone == null) {
+                cognitoBusy = false
+                onDone("Enter a valid 10-digit mobile number")
+                return@launch
+            }
+            var call = CognitoAuth.signUp(
+                regUserId.trim(),
+                regPassword,
+                regFullName.trim(),
+                regEmail.trim(),
+                phone
+            )
+            if (call is CognitoCall.Err && call.code == "EXISTS") {
+                val username = regUserId.trim()
+                val resent = CognitoAuth.resend(username)
+                call = if (resent is CognitoCall.Ok) {
+                    CognitoCall.NeedsConfirm(username, resent.delivery, regEmail.trim())
+                } else {
+                    resent
+                }
+            }
+            cognitoBusy = false
+            when (call) {
+                is CognitoCall.Ok, is CognitoCall.NeedsConfirm -> {
+                    useCognitoOtp = true
+                    cognitoUsername = when (call) {
+                        is CognitoCall.Ok -> call.username
+                        is CognitoCall.NeedsConfirm -> call.username
+                        else -> regUserId.trim()
+                    }
+                    cognitoDelivery = when (call) {
+                        is CognitoCall.Ok -> call.delivery
+                        is CognitoCall.NeedsConfirm -> call.delivery
+                        else -> ""
+                    }
+                    cognitoPassword = regPassword
+                    onDone(null)
+                }
+                is CognitoCall.Offline -> {
+                    useCognitoOtp = false
+                    cognitoPassword = ""
+                    if (regEmailOtp.isBlank() || regMobileOtp.isBlank()) issueOtps()
+                    cognitoDelivery = "Cognito is unreachable. Demo codes are on this screen."
+                    onDone(null)
+                }
+                is CognitoCall.Err -> onDone(call.message)
+            }
+        }
+    }
+
+    fun resendRegistrationCode(onDone: (String?) -> Unit) {
+        viewModelScope.launch {
+            if (useCognitoOtp) {
+                val call = CognitoAuth.resend(cognitoUsername.ifBlank { regUserId.trim() })
+                if (call is CognitoCall.Ok) {
+                    cognitoDelivery = call.delivery
+                    onDone(null)
+                } else if (call is CognitoCall.Offline) {
+                    useCognitoOtp = false
+                    issueOtps()
+                    onDone(null)
+                } else {
+                    onDone((call as? CognitoCall.Err)?.message ?: "Could not resend the code")
+                }
+            } else {
+                issueOtps()
+                onDone(null)
+            }
+        }
+    }
+
+    fun submitRegistrationCodes(emailCode: String, mobileCode: String, onDone: (String?) -> Unit) {
+        viewModelScope.launch {
+            if (useCognitoOtp) {
+                val confirmed = CognitoAuth.confirm(cognitoUsername.ifBlank { regUserId.trim() }, emailCode)
+                when (confirmed) {
+                    is CognitoCall.Err -> {
+                        onDone(confirmed.message)
+                        return@launch
+                    }
+                    is CognitoCall.Offline -> {
+                        onDone(confirmed.message)
+                        return@launch
+                    }
+                    is CognitoCall.NeedsConfirm -> {
+                        onDone("Enter the latest code sent to your email.")
+                        return@launch
+                    }
+                    is CognitoCall.Ok -> Unit
+                }
+            } else {
+                val problem = when {
+                    !IrctcRules.otpMatches(regEmailOtp, emailCode) -> "Email OTP does not match"
+                    !IrctcRules.otpMatches(regMobileOtp, mobileCode) -> "Mobile OTP does not match"
+                    else -> null
+                }
+                if (problem != null) {
+                    onDone(problem)
+                    return@launch
+                }
+            }
+            try {
+                val password = cognitoPassword.ifBlank { regPassword }
+                val profile = accountStore.create(
+                    userId = regUserId,
+                    fullName = regFullName,
+                    email = regEmail,
+                    mobile = regMobile,
+                    password = password,
+                    language = regLanguage
+                )
+                loginPrefill = profile.userId
+                regPassword = ""
+                cognitoPassword = ""
+                regEmailOtp = ""
+                regMobileOtp = ""
+                onDone(null)
+            } catch (e: Exception) {
+                onDone(e.message ?: "Could not create the account")
+            }
+        }
     }
 
     fun checkUserId() {
@@ -323,28 +561,55 @@ class AppViewModel : ViewModel() {
         authLoading = true
         authError = null
         viewModelScope.launch {
-            val rejected = try {
-                val profile = accountStore.authenticate(idOrEmail, password)
-                if (profile != null) {
-                    sessionStore.saveSession(profile.fullName, profile.email, profile.mobile, profile.userId)
-                    applyProfile(profile)
-                    loggedIn = true
+            val cognitoDeferred = async {
+                withTimeoutOrNull(12_000) { CognitoAuth.signIn(idOrEmail.trim(), password) }
+            }
+            var localProfile: RailProfile? = null
+            var localError: String? = null
+            try {
+                localProfile = accountStore.authenticate(idOrEmail, password)
+            } catch (e: Exception) {
+                localError = e.message ?: "Login failed"
+            }
+            when (val cognito = cognitoDeferred.await()) {
+                is CognitoCall.Ok -> {
+                    adoptCognitoUser(cognito.username.ifBlank { idOrEmail.trim() }, password, cognito.email, cognito.name, cognito.phone)
+                    appUnlocked = true
                     authLoading = false
                     onSuccess()
                     return@launch
                 }
-                null
-            } catch (e: Exception) {
-                e.message ?: "Login failed"
+                is CognitoCall.NeedsConfirm -> {
+                    cognitoUsername = cognito.username.ifBlank { idOrEmail.trim() }
+                    pendingPassword = password
+                    pendingVerifyEmail = idOrEmail.trim()
+                    useCognitoOtp = true
+                    otpEmailed = true
+                    otpDisplayCode = null
+                    needsVerification = true
+                    authLoading = false
+                    onNeedVerify(pendingVerifyEmail)
+                    return@launch
+                }
+                is CognitoCall.Err -> if (cognito.code == "INVALID") {
+                    authLoading = false
+                    authError = cognito.message
+                    onError(cognito.message)
+                    return@launch
+                }
+                else -> Unit
             }
-            if (rejected != null) {
+            val cognito = cognitoDeferred.await()
+            if (localProfile != null) {
+                sessionStore.saveSession(localProfile.fullName, localProfile.email, localProfile.mobile, localProfile.userId)
+                applyProfile(localProfile)
+                loggedIn = true
+                appUnlocked = true
                 authLoading = false
-                authError = rejected
-                onError(rejected)
+                onSuccess()
                 return@launch
             }
             val result = authRepo.login(idOrEmail, password)
-            authLoading = false
             if (result.success) {
                 try {
                     bridgeLegacyAccount(result.name, result.email.ifBlank { idOrEmail }, password)
@@ -355,19 +620,32 @@ class AppViewModel : ViewModel() {
                     email = userEmail
                     loggedIn = true
                 }
+                appUnlocked = true
+                authLoading = false
                 onSuccess()
-            } else if (result.needsVerification) {
+                return@launch
+            }
+            if (result.needsVerification) {
                 pendingVerifyEmail = result.email.ifBlank { idOrEmail }
                 needsVerification = true
                 otpEmailed = result.displayCode == null
                 otpDisplayCode = result.displayCode
                 authError = result.error
+                authLoading = false
                 onNeedVerify(pendingVerifyEmail)
-            } else {
-                val message = result.error ?: "No account for that user ID. Register first."
-                authError = message
-                onError(message)
+                return@launch
             }
+            val cognitoMessage = (cognito as? CognitoCall.Err)?.message
+            val offline = cognito == null || cognito is CognitoCall.Offline ||
+                (cognito is CognitoCall.Err && cognito.code == "NOT_FOUND")
+            val message = when {
+                localError != null && offline -> localError
+                cognitoMessage != null -> cognitoMessage
+                else -> result.error ?: "No account for that user ID. Register first."
+            }
+            authLoading = false
+            authError = message
+            onError(message)
         }
     }
 
@@ -474,6 +752,48 @@ class AppViewModel : ViewModel() {
         }
     }
 
+    private suspend fun adoptCognitoUser(
+        username: String,
+        password: String,
+        email: String,
+        name: String,
+        phone: String
+    ) {
+        val mail = email.trim().ifBlank { username.takeIf { it.contains("@") }.orEmpty() }
+        val phoneDigits = phone.filter { it.isDigit() }.let { if (it.length > 10) it.takeLast(10) else it }
+        val list = accountStore.profiles.first()
+        val match = list.find { it.userId.equals(username, ignoreCase = true) }
+            ?: list.find { mail.isNotBlank() && it.email.equals(mail, ignoreCase = true) }
+        val profile = if (match != null) {
+            accountStore.update(match.userId) {
+                it.copy(
+                    fullName = name.ifBlank { it.fullName },
+                    email = mail.ifBlank { it.email },
+                    mobile = phoneDigits.ifBlank { it.mobile },
+                    passwordHash = IrctcRules.secretHash(it.userId, password)
+                )
+            }
+        } else {
+            val id = if (IrctcRules.validateUserId(username) == null && !accountStore.isUserIdTaken(username)) {
+                username.trim()
+            } else {
+                accountStore.unusedUserId(IrctcRules.userIdFromEmail(mail.ifBlank { username }))
+            }
+            accountStore.create(
+                userId = id,
+                fullName = name.ifBlank { id },
+                email = mail.ifBlank { "$id@users.railx.local" },
+                mobile = phoneDigits,
+                password = password,
+                language = "English",
+                profileComplete = false
+            )
+        }
+        sessionStore.saveSession(profile.fullName, profile.email, profile.mobile, profile.userId)
+        applyProfile(profile)
+        loggedIn = true
+    }
+
     private suspend fun bridgeLegacyAccount(name: String, email: String, password: String) {
         val mail = email.trim()
         if (!mail.contains("@")) {
@@ -526,6 +846,7 @@ class AppViewModel : ViewModel() {
 
     private fun clearAccountFlags() {
         currentProfile = null
+        appUnlocked = false
         profileComplete = false
         mpinSet = false
         mpinDeferred = false

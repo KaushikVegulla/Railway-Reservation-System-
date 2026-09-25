@@ -1,4 +1,17 @@
-# Railway Reservation System (RailOne) v1.5
+# Railway Reservation System (RailX) v1.6
+
+## v1.6.0 — Cognito sign-in, MPIN, and biometric unlock
+
+Accounts are created in the Amazon Cognito user pool **RailX-Users** (`ap-south-1`). The app keeps the existing Compose screens.
+
+- Sign-up sends the user ID, name, email, and `+91` mobile number to Cognito. The email code confirms the account. SMS stays off until a TRAI DLT header exists.
+- If Cognito cannot be reached, registration falls back to the on-device demo codes.
+- After sign-in the app asks for the profile (gender, date of birth, address), then a 4-digit MPIN. Biometric unlock is optional and falls back to that MPIN.
+- Tatkal still asks for an Aadhaar or VID check on this device. Only the last 4 digits are stored.
+- Remote Razorpay calls send `Authorization: Bearer <Cognito ID token>`. The Python backend checks that token and no longer accepts `/register` or `/login`.
+- The visible name is **RailX**. It is still an academic demo inspired by RailOne (CRIS), not an official railway app.
+
+The pool id and app client id are public mobile-client values. There is no client secret. Passwords and the MPIN stay hashed on the device.
 
 ## v1.5.0 — IRCTC-style account and Tatkal link
 
@@ -81,7 +94,7 @@ use.local.keys=true
 
 Open in Android Studio → Sync → Run.
 
-- Min SDK 24 · Target 35 · **version 1.5.0**
+- Min SDK 24 · Target 35 · **version 1.6.0**
 - Test card: `4111 1111 1111 1111`, any future expiry, any CVV
 
 ---

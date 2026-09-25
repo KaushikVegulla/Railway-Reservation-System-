@@ -26,6 +26,9 @@ data class RazorOrder(
  * use.local.keys=false → proxy through optional backend
  */
 object PaymentApi {
+    @Volatile
+    var bearerToken: String? = null
+
     private val jsonType = "application/json; charset=utf-8".toMediaType()
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -39,7 +42,7 @@ object PaymentApi {
     private val useLocal get() = BuildConfig.USE_LOCAL_KEYS
     private val baseUrl get() = BuildConfig.BACKEND_BASE_URL.trimEnd('/')
 
-    fun createOrder(amountRupees: Int, receipt: String = "railone"): RazorOrder {
+    fun createOrder(amountRupees: Int, receipt: String = "railx"): RazorOrder {
         if (useLocal) return createOrderLocal(amountRupees, receipt)
         return createOrderRemote(amountRupees, receipt)
     }
@@ -54,7 +57,7 @@ object PaymentApi {
     private fun createOrderLocal(amountRupees: Int, receipt: String): RazorOrder {
         requireConfigured()
         val paise = amountRupees.coerceAtLeast(1) * 100
-        val safeReceipt = receipt.filter { it.isLetterOrDigit() || it == '_' }.take(40).ifBlank { "railone" }
+        val safeReceipt = receipt.filter { it.isLetterOrDigit() || it == '_' }.take(40).ifBlank { "railx" }
         val body = JSONObject()
             .put("amount", paise)
             .put("currency", "INR")
@@ -114,9 +117,21 @@ object PaymentApi {
         return "Basic $token"
     }
 
+    private fun requireUserToken() {
+        if (bearerToken.isNullOrBlank()) {
+            throw IllegalStateException("Sign in with your RailX account before paying.")
+        }
+    }
+
+    private fun Request.Builder.withUser(): Request.Builder {
+        val token = bearerToken?.takeIf { it.isNotBlank() } ?: return this
+        return addHeader("Authorization", "Bearer $token")
+    }
+
     // ── Optional remote backend ───────────────────────────
 
     private fun createOrderRemote(amountRupees: Int, receipt: String): RazorOrder {
+        requireUserToken()
         val body = JSONObject()
             .put("amount", amountRupees.coerceAtLeast(1))
             .put("receipt", receipt)
@@ -125,6 +140,7 @@ object PaymentApi {
         val req = Request.Builder()
             .url("$baseUrl/create-order")
             .addHeader("Content-Type", "application/json")
+            .withUser()
             .post(body)
             .build()
         http.newCall(req).execute().use { resp ->
@@ -143,6 +159,7 @@ object PaymentApi {
     }
 
     private fun verifyRemote(paymentId: String, orderId: String, signature: String): Boolean {
+        requireUserToken()
         val body = JSONObject()
             .put("razorpay_payment_id", paymentId)
             .put("razorpay_order_id", orderId)
@@ -152,6 +169,7 @@ object PaymentApi {
         val req = Request.Builder()
             .url("$baseUrl/verify-payment")
             .addHeader("Content-Type", "application/json")
+            .withUser()
             .post(body)
             .build()
         http.newCall(req).execute().use { resp ->

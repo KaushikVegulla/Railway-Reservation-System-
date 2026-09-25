@@ -1,10 +1,10 @@
 package com.kaushik.railway
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.layout.navigationBarsPadding
 import com.kaushik.railway.data.PaymentBridge
 import com.razorpay.PaymentData
@@ -62,10 +62,11 @@ import com.kaushik.railway.ui.screens.SplashScreen
 import com.kaushik.railway.ui.screens.VerifyEmailScreen
 import com.kaushik.railway.ui.screens.TicketScreen
 import com.kaushik.railway.ui.screens.TrainListScreen
+import com.kaushik.railway.ui.screens.UnlockScreen
 import com.kaushik.railway.ui.screens.VacancyChartScreen
 import com.kaushik.railway.ui.theme.RailwayTheme
 
-class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
+class MainActivity : FragmentActivity(), PaymentResultWithDataListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(
@@ -110,9 +111,16 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
             modifier = Modifier.weight(1f)
         ) {
             composable(Routes.Splash) {
-                SplashScreen {
-                    nav.navigate(Routes.Login) {
+                SplashScreen(ready = vm.gateReady) {
+                    nav.navigate(vm.gateDestination()) {
                         popUpTo(Routes.Splash) { inclusive = true }
+                    }
+                }
+            }
+            composable(Routes.Unlock) {
+                UnlockScreen(vm) {
+                    nav.navigate(vm.gateDestination()) {
+                        popUpTo(Routes.Unlock) { inclusive = true }
                     }
                 }
             }
@@ -120,12 +128,7 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
                 LoginScreen(
                     vm,
                     onLogin = {
-                        val dest = when {
-                            !vm.profileComplete -> Routes.Activate
-                            !vm.mpinSet && !vm.mpinDeferred -> Routes.Mpin
-                            else -> Routes.Home
-                        }
-                        nav.navigate(dest) { popUpTo(Routes.Login) { inclusive = true } }
+                        nav.navigate(vm.gateDestination()) { popUpTo(Routes.Login) { inclusive = true } }
                     },
                     onRegister = { nav.navigate(Routes.Register) },
                     onNeedVerify = { nav.navigate(Routes.Verify) }
@@ -169,7 +172,9 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
                 VerifyEmailScreen(
                     vm,
                     email = vm.email,
-                    onVerified = { nav.navigate(Routes.Home) { popUpTo(Routes.Login) { inclusive = true } } },
+                    onVerified = {
+                        nav.navigate(vm.gateDestination()) { popUpTo(Routes.Login) { inclusive = true } }
+                    },
                     onBack = { nav.popBackStack() }
                 )
             }

@@ -29,8 +29,12 @@ if env_path.exists():
 KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
 KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
-RESEND_FROM = os.environ.get("RESEND_FROM", "RailOne <beth.t@example.com>")
+RESEND_FROM = os.environ.get("RESEND_FROM", "RailX <beth.t@example.com>")
 PORT = int(os.environ.get("PORT", "8088"))
+COGNITO_REGION = os.environ.get("COGNITO_REGION", "ap-south-1")
+COGNITO_USER_POOL_ID = os.environ.get("COGNITO_USER_POOL_ID", "ap-south-1_SspUmQyId")
+COGNITO_CLIENT_ID = os.environ.get("COGNITO_CLIENT_ID", "5s0vjm6vk4lttl2s326qh9mlmt")
+COGNITO_REQUIRE_JWT = os.environ.get("COGNITO_REQUIRE_JWT", "1").lower() not in ("0", "false", "no")
 RAZORPAY_ORDERS = "https://api.razorpay.com/v1/orders"
 USERS_FILE = ROOT / "users.json"
 
@@ -133,6 +137,64 @@ def verify_signature(order_id: str, payment_id: str, signature: str) -> bool:
     return hmac.compare_digest(expected, signature or "")
 
 
+_JWKS: dict = {"keys": None, "fetched": 0.0}
+
+
+def _b64url(data: str) -> bytes:
+    pad = "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode(data + pad)
+
+
+def verify_cognito_jwt(token: str) -> dict:
+    """Validate a Cognito ID or access token. Pool id and client id are public app config."""
+    parts = token.split(".")
+    if len(parts) != 3 or not all(parts):
+        raise ValueError("Malformed token")
+    header = json.loads(_b64url(parts[0]))
+    if header.get("alg") != "RS256":
+        raise ValueError("Unexpected alg")
+    payload = json.loads(_b64url(parts[1]))
+    now = time.time()
+    if _JWKS["keys"] is None or now - float(_JWKS["fetched"]) > 3600:
+        url = (
+            f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/"
+            f"{COGNITO_USER_POOL_ID}/.well-known/jwks.json"
+        )
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            _JWKS["keys"] = json.loads(resp.read().decode())["keys"]
+            _JWKS["fetched"] = now
+    kid = header.get("kid")
+    jwk = next((key for key in _JWKS["keys"] if key.get("kid") == kid), None)
+    if jwk is None:
+        raise ValueError("Unknown signing key")
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.asymmetric import padding, rsa
+
+    numbers = rsa.RSAPublicNumbers(
+        int.from_bytes(_b64url(jwk["e"]), "big"),
+        int.from_bytes(_b64url(jwk["n"]), "big"),
+    )
+    numbers.public_key().verify(
+        _b64url(parts[2]),
+        f"{parts[0]}.{parts[1]}".encode(),
+        padding.PKCS1v15(),
+        hashes.SHA256(),
+    )
+    issuer = f"https://cognito-idp.{COGNITO_REGION}.amazonaws.com/{COGNITO_USER_POOL_ID}"
+    if payload.get("iss") != issuer:
+        raise ValueError("Bad issuer")
+    if int(payload.get("exp", 0)) < time.time():
+        raise ValueError("Token expired")
+    use = payload.get("token_use")
+    if use == "id" and payload.get("aud") != COGNITO_CLIENT_ID:
+        raise ValueError("Bad audience")
+    if use == "access" and payload.get("client_id") != COGNITO_CLIENT_ID:
+        raise ValueError("Bad client")
+    if use not in ("id", "access"):
+        raise ValueError("Bad token_use")
+    return payload
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         print("[pay]", fmt % args)
@@ -142,7 +204,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
@@ -157,7 +219,9 @@ class Handler(BaseHTTPRequestHandler):
                 200,
                 {
                     "ok": True,
-                    "service": "railone-backend",
+                    "service": "railx-backend",
+                    "auth": "cognito",
+                    "userPoolId": COGNITO_USER_POOL_ID,
                     "keyIdPresent": bool(KEY_ID),
                     "resendPresent": bool(RESEND_API_KEY),
                 },
@@ -180,24 +244,41 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if self.path in ("/create-order", "/api/create-order"):
+            if self._require_user() is None:
+                return
             self._create_order(body)
             return
         if self.path in ("/verify-payment", "/api/verify-payment"):
+            if self._require_user() is None:
+                return
             self._verify(body)
             return
-        if self.path in ("/register", "/api/register"):
-            self._register(body)
-            return
-        if self.path in ("/verify-email", "/api/verify-email"):
-            self._verify_email(body)
-            return
-        if self.path in ("/login", "/api/login"):
-            self._login(body)
-            return
-        if self.path in ("/resend-code", "/api/resend-code"):
-            self._resend(body)
+        if self.path in ("/register", "/api/register", "/verify-email", "/api/verify-email", "/login", "/api/login", "/resend-code", "/api/resend-code"):
+            self._send(
+                410,
+                {
+                    "success": False,
+                    "error": "Account auth moved to Amazon Cognito (RailX-Users). Sign up in the Android app.",
+                },
+            )
             return
         self._send(404, {"success": False, "error": "Not found"})
+
+    def _require_user(self) -> dict | None:
+        if not COGNITO_REQUIRE_JWT:
+            return {}
+        header = self.headers.get("Authorization") or ""
+        if not header.startswith("Bearer "):
+            self._send(401, {"success": False, "error": "Cognito sign-in required"})
+            return None
+        try:
+            return verify_cognito_jwt(header[7:].strip())
+        except ValueError as exc:
+            self._send(401, {"success": False, "error": str(exc)})
+            return None
+        except Exception:
+            self._send(401, {"success": False, "error": "Invalid Cognito token"})
+            return None
 
     def _create_order(self, body: dict) -> None:
         if not KEY_ID or not KEY_SECRET:
@@ -363,13 +444,10 @@ def main() -> None:
     if not RESEND_API_KEY:
         print("WARNING: RESEND_API_KEY missing — email OTP will fail.")
     httpd = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
-    print(f"RailOne backend listening on http://0.0.0.0:{PORT}")
-    print("  POST /register       {name, email, password}")
-    print("  POST /verify-email   {email, code}")
-    print("  POST /login          {email, password}")
-    print("  POST /resend-code    {email}")
-    print("  POST /create-order   {amount}")
-    print("  POST /verify-payment {razorpay_payment_id, razorpay_order_id, razorpay_signature}")
+    print(f"RailX backend listening on http://0.0.0.0:{PORT}")
+    print("  Auth is Amazon Cognito. /register /login /verify-email return 410.")
+    print("  POST /create-order   Authorization: Bearer <cognito id token>  {amount}")
+    print("  POST /verify-payment Authorization: Bearer <cognito id token>")
     httpd.serve_forever()
 
 
