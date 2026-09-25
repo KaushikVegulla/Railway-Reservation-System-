@@ -151,6 +151,7 @@ fun LabeledField(
     value: String,
     modifier: Modifier = Modifier,
     isPassword: Boolean = false,
+    keyboardType: KeyboardType = KeyboardType.Text,
     onValue: (String) -> Unit,
 ) {
     OutlinedTextField(
@@ -160,7 +161,9 @@ fun LabeledField(
         modifier = modifier.fillMaxWidth(),
         singleLine = true,
         visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
-        keyboardOptions = KeyboardOptions(keyboardType = if (isPassword) KeyboardType.Password else KeyboardType.Text),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = if (isPassword) KeyboardType.Password else keyboardType
+        ),
         shape = RoundedCornerShape(16.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = Color.White.copy(alpha = 0.45f),

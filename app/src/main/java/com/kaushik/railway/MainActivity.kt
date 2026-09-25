@@ -43,16 +43,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.kaushik.railway.nav.Routes
+import com.kaushik.railway.ui.screens.AadhaarEnableScreen
+import com.kaushik.railway.ui.screens.AccountRegisterScreen
 import com.kaushik.railway.ui.screens.AvailabilityScreen
 import com.kaushik.railway.ui.screens.BookingsScreen
 import com.kaushik.railway.ui.screens.HomeScreen
 import com.kaushik.railway.ui.screens.LoginScreen
 import com.kaushik.railway.ui.screens.MoreScreen
+import com.kaushik.railway.ui.screens.MpinScreen
 import com.kaushik.railway.ui.screens.PassengerScreen
 import com.kaushik.railway.ui.screens.PaymentScreen
 import com.kaushik.railway.ui.screens.PnrScreen
+import com.kaushik.railway.ui.screens.ProfileActivationScreen
 import com.kaushik.railway.ui.screens.ProfileScreen
-import com.kaushik.railway.ui.screens.RegisterScreen
 import com.kaushik.railway.ui.screens.ReviewScreen
 import com.kaushik.railway.ui.screens.RunningStatusScreen
 import com.kaushik.railway.ui.screens.SplashScreen
@@ -116,15 +119,49 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
             composable(Routes.Login) {
                 LoginScreen(
                     vm,
-                    onLogin = { nav.navigate(Routes.Home) { popUpTo(Routes.Login) { inclusive = true } } },
+                    onLogin = {
+                        val dest = when {
+                            !vm.profileComplete -> Routes.Activate
+                            !vm.mpinSet && !vm.mpinDeferred -> Routes.Mpin
+                            else -> Routes.Home
+                        }
+                        nav.navigate(dest) { popUpTo(Routes.Login) { inclusive = true } }
+                    },
                     onRegister = { nav.navigate(Routes.Register) },
                     onNeedVerify = { nav.navigate(Routes.Verify) }
                 )
             }
             composable(Routes.Register) {
-                RegisterScreen(
+                AccountRegisterScreen(
                     vm,
-                    onNeedVerify = { nav.navigate(Routes.Verify) },
+                    onDone = { nav.popBackStack() },
+                    onBack = { nav.popBackStack() }
+                )
+            }
+            composable(Routes.Activate) {
+                ProfileActivationScreen(
+                    vm,
+                    onDone = {
+                        nav.navigate(Routes.Mpin) { popUpTo(Routes.Activate) { inclusive = true } }
+                    },
+                    onLater = {
+                        if (!nav.popBackStack()) {
+                            nav.navigate(Routes.Home) { popUpTo(0) { inclusive = true } }
+                        }
+                    }
+                )
+            }
+            composable(Routes.Mpin) {
+                MpinScreen(vm) {
+                    if (!nav.popBackStack(Routes.Home, inclusive = false)) {
+                        nav.navigate(Routes.Home) { popUpTo(0) { inclusive = true } }
+                    }
+                }
+            }
+            composable(Routes.Aadhaar) {
+                AadhaarEnableScreen(
+                    vm,
+                    onDone = { nav.popBackStack() },
                     onBack = { nav.popBackStack() }
                 )
             }
@@ -142,7 +179,9 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
                     onSearch = { nav.navigate(Routes.Trains) },
                     onPnr = { nav.navigate(Routes.Pnr) },
                     onRunning = { nav.navigate(Routes.Running) },
-                    onBookings = { nav.navigate(Routes.Bookings) }
+                    onBookings = { nav.navigate(Routes.Bookings) },
+                    onNeedProfile = { nav.navigate(Routes.Activate) },
+                    onNeedAadhaar = { nav.navigate(Routes.Aadhaar) }
                 )
             }
             composable(Routes.Trains) {
@@ -158,7 +197,13 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
                 })
             }
             composable(Routes.Vacancy) {
-                VacancyChartScreen(vm, onBack = { nav.popBackStack() }, onBook = { nav.navigate(Routes.Passengers) })
+                VacancyChartScreen(vm, onBack = { nav.popBackStack() }, onBook = {
+                    when {
+                        !vm.profileComplete -> nav.navigate(Routes.Activate)
+                        vm.needsTatkalAadhaar() -> nav.navigate(Routes.Aadhaar)
+                        else -> nav.navigate(Routes.Passengers)
+                    }
+                })
             }
             composable(Routes.Passengers) {
                 PassengerScreen(vm, onBack = { nav.popBackStack() }, onContinue = { nav.navigate(Routes.Review) })
@@ -183,7 +228,10 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
                         vm.logout {
                             nav.navigate(Routes.Login) { popUpTo(0) { inclusive = true } }
                         }
-                    }
+                    },
+                    onActivate = { nav.navigate(Routes.Activate) },
+                    onMpin = { nav.navigate(Routes.Mpin) },
+                    onAadhaar = { nav.navigate(Routes.Aadhaar) }
                 )
             }
             composable(Routes.More) {
@@ -191,7 +239,9 @@ fun RailwayApp(vm: AppViewModel = viewModel()) {
                     onPnr = { nav.navigate(Routes.Pnr) },
                     onRunning = { nav.navigate(Routes.Running) },
                     onProfile = { nav.navigate(Routes.Profile) },
-                    onBookings = { nav.navigate(Routes.Bookings) }
+                    onBookings = { nav.navigate(Routes.Bookings) },
+                    onAadhaar = { nav.navigate(Routes.Aadhaar) },
+                    onMpin = { nav.navigate(Routes.Mpin) }
                 )
             }
         }

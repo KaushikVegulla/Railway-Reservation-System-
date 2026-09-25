@@ -1,4 +1,15 @@
-# Railway Reservation System (RailOne) v1.4
+# Railway Reservation System (RailOne) v1.5
+
+## v1.5.0 — IRCTC-style account and Tatkal link
+
+Academic walkthrough of the account flow: user ID, password rules, captcha (or OTP when the visually impaired option is on), masked email and mobile, demo OTPs, profile (gender, date of birth, address), 4-digit MPIN, then a local Aadhaar / VID check before Tatkal search.
+
+- Accounts stay on the device. Passwords and the MPIN are stored as hashes.
+- The Aadhaar or VID value is not saved and is not sent to UIDAI. Only the last 4 digits remain.
+- PAN does not turn on Tatkal. General quota search does not ask for this link.
+- Not an official IRCTC, CRIS, or UIDAI service.
+
+## v1.4.0 — Improvements (product plan)
 
 ## v1.4.0 — Improvements (product plan)
 
@@ -70,7 +81,7 @@ use.local.keys=true
 
 Open in Android Studio → Sync → Run.
 
-- Min SDK 24 · Target 35 · **version 1.4.0**
+- Min SDK 24 · Target 35 · **version 1.5.0**
 - Test card: `4111 1111 1111 1111`, any future expiry, any CVV
 
 ---

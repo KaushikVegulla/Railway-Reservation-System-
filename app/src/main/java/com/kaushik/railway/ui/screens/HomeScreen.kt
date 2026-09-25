@@ -65,7 +65,9 @@ fun HomeScreen(
     onSearch: () -> Unit,
     onPnr: () -> Unit,
     onRunning: () -> Unit,
-    onBookings: () -> Unit
+    onBookings: () -> Unit,
+    onNeedProfile: () -> Unit,
+    onNeedAadhaar: () -> Unit
 ) {
     LiquidGlassBackdrop {
         Column(Modifier.fillMaxSize()) {
@@ -179,9 +181,25 @@ fun HomeScreen(
                         }
                     }
                     Spacer(Modifier.height(12.dp))
+                    if (!vm.profileComplete) {
+                        Text("Complete your profile before searching trains.", color = Orange, fontSize = 12.sp)
+                        Spacer(Modifier.height(6.dp))
+                    } else if (vm.needsTatkalAadhaar()) {
+                        Text("Tatkal needs a local Aadhaar or VID link before search.", color = Orange, fontSize = 12.sp)
+                        Spacer(Modifier.height(6.dp))
+                    } else if (vm.aadhaarLinked && com.kaushik.railway.data.IrctcRules.isTatkalQuota(vm.selectedQuota)) {
+                        Text("Tatkal link on this device ••••${vm.aadhaarLast4}", color = Navy, fontSize = 12.sp)
+                        Spacer(Modifier.height(6.dp))
+                    }
                     OrangeButton("SEARCH TRAINS") {
-                        vm.searchTrainsLive()
-                        onSearch()
+                        when {
+                            !vm.profileComplete -> onNeedProfile()
+                            vm.needsTatkalAadhaar() -> onNeedAadhaar()
+                            else -> {
+                                vm.searchTrainsLive()
+                                onSearch()
+                            }
+                        }
                     }
                 }
             }

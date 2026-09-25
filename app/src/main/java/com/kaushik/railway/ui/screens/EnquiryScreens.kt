@@ -106,7 +106,10 @@ fun RunningStatusScreen(vm: AppViewModel, onBack: () -> Unit) {
 fun ProfileScreen(
     vm: AppViewModel,
     onBack: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onActivate: () -> Unit = {},
+    onMpin: () -> Unit = {},
+    onAadhaar: () -> Unit = {}
 ) {
     var editName by remember { mutableStateOf(vm.userName) }
     var editMobile by remember { mutableStateOf(vm.userMobile.ifBlank { vm.mobile }) }
@@ -121,7 +124,14 @@ fun ProfileScreen(
                 Column {
                     Text("Account", fontWeight = FontWeight.Bold, color = Navy, fontSize = 16.sp)
                     Spacer(Modifier.height(8.dp))
+                    KeyValue("User ID", vm.userId.ifBlank { "—" })
                     KeyValue("Email", vm.userEmail.ifBlank { "—" })
+                    KeyValue("Profile", if (vm.profileComplete) "Complete" else "Incomplete")
+                    KeyValue("MPIN", if (vm.mpinSet) "Set" else if (vm.mpinDeferred) "Later" else "Not set")
+                    KeyValue(
+                        "Tatkal",
+                        if (vm.aadhaarLinked) "${vm.aadhaarKind} ••••${vm.aadhaarLast4}" else "Not linked"
+                    )
                     KeyValue("Status", if (vm.loggedIn) "Signed in" else "Guest")
                 }
             }
@@ -155,6 +165,12 @@ fun ProfileScreen(
                     }
                 }
             }
+            Spacer(Modifier.height(16.dp))
+            if (!vm.profileComplete) OrangeButton("COMPLETE PROFILE", onClick = onActivate)
+            Spacer(Modifier.height(8.dp))
+            OrangeButton(if (vm.mpinSet) "CHANGE PIN" else "GENERATE PIN", onClick = onMpin)
+            Spacer(Modifier.height(8.dp))
+            OrangeButton(if (vm.aadhaarLinked) "UPDATE TATKAL LINK" else "ENABLE TATKAL", onClick = onAadhaar)
             Spacer(Modifier.height(24.dp))
             OrangeButton("LOGOUT", onClick = onLogout)
             Text(
@@ -168,7 +184,14 @@ fun ProfileScreen(
 }
 
 @Composable
-fun MoreScreen(onPnr: () -> Unit, onRunning: () -> Unit, onProfile: () -> Unit, onBookings: () -> Unit) {
+fun MoreScreen(
+    onPnr: () -> Unit,
+    onRunning: () -> Unit,
+    onProfile: () -> Unit,
+    onBookings: () -> Unit,
+    onAadhaar: () -> Unit = {},
+    onMpin: () -> Unit = {}
+) {
     Column(Modifier.fillMaxSize().background(Color.Transparent).padding(16.dp)) {
         Text("More", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Navy)
         Text("RailOne  •  CRIS services", color = Color.Gray, fontSize = 13.sp)
@@ -177,7 +200,9 @@ fun MoreScreen(onPnr: () -> Unit, onRunning: () -> Unit, onProfile: () -> Unit, 
             "PNR enquiry" to onPnr,
             "Live train status" to onRunning,
             "My bookings" to onBookings,
-            "Profile & logout" to onProfile
+            "Profile & logout" to onProfile,
+            "Generate PIN" to onMpin,
+            "Tatkal Aadhaar link" to onAadhaar
         ).forEach { (label, action) ->
             RailCard(Modifier.padding(bottom = 8.dp)) {
                 androidx.compose.material3.TextButton(onClick = action, modifier = Modifier.fillMaxWidth()) {

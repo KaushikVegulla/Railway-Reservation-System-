@@ -18,7 +18,8 @@ data class UserSession(
     val loggedIn: Boolean = false,
     val name: String = "",
     val email: String = "",
-    val mobile: String = ""
+    val mobile: String = "",
+    val userId: String = ""
 )
 
 /** Last search/book route for one-tap rebook */
@@ -36,6 +37,7 @@ class SessionStore(private val context: Context) {
     private val KEY_NAME = stringPreferencesKey("name")
     private val KEY_EMAIL = stringPreferencesKey("email")
     private val KEY_MOBILE = stringPreferencesKey("mobile")
+    private val KEY_USER_ID = stringPreferencesKey("user_id")
     private val KEY_LAST_JOURNEY = stringPreferencesKey("last_journey_json")
     private val KEY_SAVED_PASSENGERS = stringPreferencesKey("saved_passengers_json")
 
@@ -44,7 +46,8 @@ class SessionStore(private val context: Context) {
             loggedIn = prefs[KEY_LOGGED_IN] ?: false,
             name = prefs[KEY_NAME] ?: "",
             email = prefs[KEY_EMAIL] ?: "",
-            mobile = prefs[KEY_MOBILE] ?: ""
+            mobile = prefs[KEY_MOBILE] ?: "",
+            userId = prefs[KEY_USER_ID] ?: ""
         )
     }
 
@@ -56,12 +59,13 @@ class SessionStore(private val context: Context) {
         prefs[KEY_SAVED_PASSENGERS]?.let { parsePassengers(it) } ?: emptyList()
     }
 
-    suspend fun saveSession(name: String, email: String, mobile: String = "") {
+    suspend fun saveSession(name: String, email: String, mobile: String = "", userId: String = "") {
         context.dataStore.edit { prefs ->
             prefs[KEY_LOGGED_IN] = true
             prefs[KEY_NAME] = name
             prefs[KEY_EMAIL] = email
             if (mobile.isNotBlank()) prefs[KEY_MOBILE] = mobile
+            if (userId.isNotBlank()) prefs[KEY_USER_ID] = userId
         }
     }
 
@@ -71,6 +75,7 @@ class SessionStore(private val context: Context) {
             prefs[KEY_LOGGED_IN] = false
             prefs.remove(KEY_NAME)
             prefs.remove(KEY_EMAIL)
+            prefs.remove(KEY_USER_ID)
             // mobile / last journey / passengers kept
         }
     }

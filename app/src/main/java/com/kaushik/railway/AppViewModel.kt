@@ -6,13 +6,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kaushik.railway.data.AccountStore
 import com.kaushik.railway.data.AvailabilityResult
 import com.kaushik.railway.data.Booking
+import com.kaushik.railway.data.IrctcRules
+import com.kaushik.railway.data.LastJourney
 import com.kaushik.railway.data.MockData
 import com.kaushik.railway.data.Passenger
 import com.kaushik.railway.data.PnrResult
+import com.kaushik.railway.data.ProfileDraft
+import com.kaushik.railway.data.RailProfile
 import com.kaushik.railway.data.RunningStop
-import com.kaushik.railway.data.LastJourney
 import com.kaushik.railway.data.SessionStore
 import com.kaushik.railway.data.Station
 import com.kaushik.railway.data.Train
@@ -23,6 +27,7 @@ import com.kaushik.railway.data.repository.BookingRepository
 import com.kaushik.railway.data.repository.TrainRepository
 import com.kaushik.railway.util.UiState
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -32,6 +37,7 @@ import kotlin.random.Random
 class AppViewModel : ViewModel() {
 
     private val sessionStore = SessionStore(RailApp.instance)
+    private val accountStore = AccountStore(RailApp.instance)
     private val bookingRepo = BookingRepository(AppDatabase.getInstance(RailApp.instance))
     private val trainRepo = TrainRepository()
     private val authRepo = AuthRepository(sessionStore)
@@ -42,6 +48,29 @@ class AppViewModel : ViewModel() {
     var userEmail by mutableStateOf("")
     var userMobile by mutableStateOf("")
     var userId by mutableStateOf("")
+    var profileComplete by mutableStateOf(false)
+    var mpinSet by mutableStateOf(false)
+    var mpinDeferred by mutableStateOf(false)
+    var biometricOn by mutableStateOf(false)
+    var aadhaarLinked by mutableStateOf(false)
+    var aadhaarLast4 by mutableStateOf("")
+    var aadhaarKind by mutableStateOf("")
+    var currentProfile by mutableStateOf<RailProfile?>(null)
+    var loginPrefill by mutableStateOf("")
+    var regVisuallyImpaired by mutableStateOf(false)
+    var regUserId by mutableStateOf("")
+    var regFullName by mutableStateOf("")
+    var regPassword by mutableStateOf("")
+    var regMobile by mutableStateOf("")
+    var regEmail by mutableStateOf("")
+    var regLanguage by mutableStateOf("English")
+    var regCaptcha by mutableStateOf("")
+    var regEmailOtp by mutableStateOf("")
+    var regMobileOtp by mutableStateOf("")
+    var regStep by mutableStateOf(0)
+    var regIdMessage by mutableStateOf("")
+    var regIdChecked by mutableStateOf("")
+    private var profilesReady by mutableStateOf(false)
     var otpEmailed by mutableStateOf(true)
     var otpDisplayCode by mutableStateOf<String?>(null)
     var authLoading by mutableStateOf(false)
@@ -103,8 +132,16 @@ class AppViewModel : ViewModel() {
                 userName = session.name
                 userEmail = session.email
                 userMobile = session.mobile
+                userId = session.userId
                 if (session.mobile.isNotBlank()) mobile = session.mobile
                 if (session.email.isNotBlank()) email = session.email
+                if (!session.loggedIn) clearAccountFlags() else refreshAccount()
+            }
+        }
+        viewModelScope.launch {
+            accountStore.profiles.collectLatest {
+                profilesReady = true
+                refreshAccount()
             }
         }
         viewModelScope.launch {
@@ -195,7 +232,307 @@ class AppViewModel : ViewModel() {
         viewModelScope.launch {
             authRepo.updateProfile(name, mobile)
             this@AppViewModel.mobile = mobile
+            if (userId.isNotBlank()) {
+                val updated = accountStore.update(userId) { it.copy(fullName = name, mobile = mobile.filter { ch -> ch.isDigit() }) }
+                applyProfile(updated)
+            }
         }
+    }
+
+    fun needsTatkalAadhaar(): Boolean = IrctcRules.isTatkalQuota(selectedQuota) && !aadhaarLinked
+
+    fun startRegistration(visuallyImpaired: Boolean) {
+        regVisuallyImpaired = visuallyImpaired
+        regUserId = ""
+        regFullName = ""
+        regPassword = ""
+        regMobile = ""
+        regEmail = ""
+        regLanguage = "English"
+        regCaptcha = IrctcRules.newCaptcha()
+        regEmailOtp = ""
+        regMobileOtp = ""
+        regStep = 0
+        regIdMessage = ""
+        regIdChecked = ""
+    }
+
+    fun checkUserId() {
+        val err = IrctcRules.validateUserId(regUserId)
+        if (err != null) {
+            regIdMessage = err
+            regIdChecked = ""
+            return
+        }
+        viewModelScope.launch {
+            val taken = accountStore.isUserIdTaken(regUserId)
+            regIdChecked = if (taken) "" else regUserId.trim()
+            regIdMessage = if (taken) "User ID is already taken" else "User ID is available"
+        }
+    }
+
+    fun refreshCaptcha() {
+        regCaptcha = IrctcRules.newCaptcha()
+    }
+
+    fun issueOtps() {
+        regEmailOtp = IrctcRules.newOtp()
+        regMobileOtp = IrctcRules.newOtp()
+    }
+
+    fun validateNewContact(onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            val message = when {
+                accountStore.isEmailTaken(regEmail) -> "Email is already registered"
+                accountStore.isMobileTaken(regMobile) -> "Mobile is already registered"
+                else -> null
+            }
+            onResult(message)
+        }
+    }
+
+    fun finishRegistration(onDone: (String?) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val profile = accountStore.create(
+                    userId = regUserId,
+                    fullName = regFullName,
+                    email = regEmail,
+                    mobile = regMobile,
+                    password = regPassword,
+                    language = regLanguage
+                )
+                loginPrefill = profile.userId
+                regPassword = ""
+                regEmailOtp = ""
+                regMobileOtp = ""
+                onDone(null)
+            } catch (e: Exception) {
+                onDone(e.message ?: "Could not create the account")
+            }
+        }
+    }
+
+    fun signIn(
+        idOrEmail: String,
+        password: String,
+        onSuccess: () -> Unit,
+        onNeedVerify: (String) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        authLoading = true
+        authError = null
+        viewModelScope.launch {
+            val rejected = try {
+                val profile = accountStore.authenticate(idOrEmail, password)
+                if (profile != null) {
+                    sessionStore.saveSession(profile.fullName, profile.email, profile.mobile, profile.userId)
+                    applyProfile(profile)
+                    loggedIn = true
+                    authLoading = false
+                    onSuccess()
+                    return@launch
+                }
+                null
+            } catch (e: Exception) {
+                e.message ?: "Login failed"
+            }
+            if (rejected != null) {
+                authLoading = false
+                authError = rejected
+                onError(rejected)
+                return@launch
+            }
+            val result = authRepo.login(idOrEmail, password)
+            authLoading = false
+            if (result.success) {
+                try {
+                    bridgeLegacyAccount(result.name, result.email.ifBlank { idOrEmail }, password)
+                } catch (_: Exception) {
+                    profileComplete = true
+                    userName = result.name
+                    userEmail = result.email.ifBlank { idOrEmail }
+                    email = userEmail
+                    loggedIn = true
+                }
+                onSuccess()
+            } else if (result.needsVerification) {
+                pendingVerifyEmail = result.email.ifBlank { idOrEmail }
+                needsVerification = true
+                otpEmailed = result.displayCode == null
+                otpDisplayCode = result.displayCode
+                authError = result.error
+                onNeedVerify(pendingVerifyEmail)
+            } else {
+                val message = result.error ?: "No account for that user ID. Register first."
+                authError = message
+                onError(message)
+            }
+        }
+    }
+
+    fun lookupUserId(emailOrMobile: String, onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            onResult(accountStore.findUserId(emailOrMobile))
+        }
+    }
+
+    fun completeProfile(draft: ProfileDraft, onDone: (String?) -> Unit) {
+        val problem = IrctcRules.validateProfile(draft)
+        if (problem != null) {
+            onDone(problem)
+            return
+        }
+        if (userId.isBlank()) {
+            onDone("Sign in with your user ID before saving the profile")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val updated = accountStore.update(userId) {
+                    it.copy(
+                        gender = draft.gender,
+                        dob = draft.dob.trim(),
+                        occupation = draft.occupation,
+                        maritalStatus = draft.maritalStatus,
+                        nationality = draft.nationality.trim(),
+                        addressLine = draft.addressLine.trim(),
+                        city = draft.city.trim(),
+                        state = draft.state,
+                        country = draft.country.trim(),
+                        pinCode = draft.pinCode,
+                        profileComplete = true
+                    )
+                }
+                sessionStore.saveSession(updated.fullName, updated.email, updated.mobile, updated.userId)
+                applyProfile(updated)
+                onDone(null)
+            } catch (e: Exception) {
+                onDone(e.message ?: "Could not save the profile")
+            }
+        }
+    }
+
+    fun saveMpin(pin: String, confirm: String, biometric: Boolean, onDone: (String?) -> Unit) {
+        val problem = IrctcRules.validateMpin(pin, confirm)
+        if (problem != null) {
+            onDone(problem)
+            return
+        }
+        if (userId.isBlank()) {
+            onDone("Sign in again to save the PIN")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val updated = accountStore.update(userId) {
+                    it.copy(
+                        mpinHash = IrctcRules.secretHash(it.userId, "mpin:$pin"),
+                        biometricEnabled = biometric,
+                        mpinDeferred = false
+                    )
+                }
+                applyProfile(updated)
+                onDone(null)
+            } catch (e: Exception) {
+                onDone(e.message ?: "Could not save the PIN")
+            }
+        }
+    }
+
+    fun deferMpin(onDone: () -> Unit) {
+        viewModelScope.launch {
+            if (userId.isNotBlank()) {
+                val updated = accountStore.update(userId) { it.copy(mpinDeferred = true) }
+                applyProfile(updated)
+            } else {
+                mpinDeferred = true
+            }
+            onDone()
+        }
+    }
+
+    fun saveAadhaarLink(kind: String, last4: String, onDone: (String?) -> Unit) {
+        if (userId.isBlank()) {
+            onDone("Register an account before linking Aadhaar")
+            return
+        }
+        if (last4.length != 4 || last4.any { !it.isDigit() }) {
+            onDone("Could not save the link")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val updated = accountStore.update(userId) {
+                    it.copy(aadhaarLinked = true, aadhaarLast4 = last4, aadhaarKind = kind)
+                }
+                applyProfile(updated)
+                onDone(null)
+            } catch (e: Exception) {
+                onDone(e.message ?: "Could not save the link")
+            }
+        }
+    }
+
+    private suspend fun bridgeLegacyAccount(name: String, email: String, password: String) {
+        val mail = email.trim()
+        if (!mail.contains("@")) {
+            profileComplete = true
+            userName = name
+            userEmail = mail
+            loggedIn = true
+            return
+        }
+        val seed = IrctcRules.userIdFromEmail(mail)
+        val id = accountStore.unusedUserId(seed)
+        val profile = accountStore.create(
+            userId = id,
+            fullName = name.ifBlank { id },
+            email = mail,
+            mobile = userMobile.filter { it.isDigit() },
+            password = password,
+            language = "English",
+            profileComplete = true
+        )
+        sessionStore.saveSession(profile.fullName, profile.email, profile.mobile, profile.userId)
+        applyProfile(profile)
+        loggedIn = true
+    }
+
+    private suspend fun refreshAccount() {
+        if (!profilesReady || !loggedIn) return
+        val list = accountStore.profiles.first()
+        val match = list.find { userId.isNotBlank() && it.userId.equals(userId, ignoreCase = true) }
+            ?: list.find { userEmail.isNotBlank() && it.email.equals(userEmail, ignoreCase = true) }
+        if (match != null) applyProfile(match) else if (userId.isBlank()) profileComplete = true
+    }
+
+    private fun applyProfile(profile: RailProfile) {
+        currentProfile = profile
+        userId = profile.userId
+        userName = profile.fullName
+        userEmail = profile.email
+        userMobile = profile.mobile
+        email = profile.email
+        if (profile.mobile.isNotBlank()) mobile = profile.mobile
+        profileComplete = profile.profileComplete
+        mpinSet = profile.mpinSet
+        mpinDeferred = profile.mpinDeferred
+        biometricOn = profile.biometricEnabled
+        aadhaarLinked = profile.aadhaarLinked
+        aadhaarLast4 = profile.aadhaarLast4
+        aadhaarKind = profile.aadhaarKind
+    }
+
+    private fun clearAccountFlags() {
+        currentProfile = null
+        profileComplete = false
+        mpinSet = false
+        mpinDeferred = false
+        biometricOn = false
+        aadhaarLinked = false
+        aadhaarLast4 = ""
+        aadhaarKind = ""
     }
 
     // ── Search / Trains ───────────────────────────────────

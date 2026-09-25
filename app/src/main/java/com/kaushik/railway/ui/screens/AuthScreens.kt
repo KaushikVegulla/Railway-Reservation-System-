@@ -16,9 +16,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Train
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -89,11 +91,14 @@ fun SplashScreen(onDone: () -> Unit) {
 
 @Composable
 fun LoginScreen(vm: AppViewModel, onLogin: () -> Unit, onRegister: () -> Unit, onNeedVerify: (String) -> Unit) {
-    var email by remember { mutableStateOf(vm.email.ifBlank { "" }) }
+    var user by remember(vm.loginPrefill) { mutableStateOf(vm.loginPrefill.ifBlank { vm.userId }) }
     var pass by remember { mutableStateOf("") }
+    var impaired by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
+    var forgotOpen by remember { mutableStateOf(false) }
+    var forgotKey by remember { mutableStateOf("") }
+    var forgotInfo by remember { mutableStateOf<String?>(null) }
     LiquidGlassBackdrop {
     Column(
         Modifier.fillMaxSize().systemBarsPadding().padding(24.dp).verticalScroll(rememberScrollState()),
@@ -101,45 +106,88 @@ fun LoginScreen(vm: AppViewModel, onLogin: () -> Unit, onRegister: () -> Unit, o
     ) {
         RailCard {
         Column {
-        Text("RailOne login", color = Navy, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-        Text("Email and password", color = Color.Gray, fontSize = 14.sp)
-        Spacer(Modifier.height(24.dp))
-        LabeledField("Email", email, onValue = { email = it })
+        Text("SIGN IN", color = Orange, fontSize = 13.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Text("User ID and password", color = Navy, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(16.dp))
+        LabeledField("User ID", user, onValue = { user = it })
         Spacer(Modifier.height(12.dp))
         LabeledField("Password", pass, isPassword = true, onValue = { pass = it })
-        error?.let { Text(it, color = Color.Red, fontSize = 13.sp, modifier = Modifier.padding(top = 10.dp)) }
-        Spacer(Modifier.height(20.dp))
-        OrangeButton(if (busy) "PLEASE WAIT" else "LOGIN", enabled = !busy) {
+        TextButton(onClick = { forgotOpen = true; forgotInfo = null }, modifier = Modifier.fillMaxWidth()) {
+            Text("Forgot account details?", color = Navy)
+        }
+        CheckRow(
+            checked = impaired,
+            text = "Visually impaired user: receive OTP instead of captcha",
+            onChange = { impaired = it }
+        )
+        error?.let { Text(it, color = Color.Red, fontSize = 13.sp, modifier = Modifier.padding(top = 8.dp)) }
+        Spacer(Modifier.height(12.dp))
+        OrangeButton(if (busy) "PLEASE WAIT" else "SIGN IN", enabled = !busy) {
+            if (user.isBlank() || pass.isBlank()) {
+                error = "Enter the user ID and password"
+                return@OrangeButton
+            }
             busy = true
             error = null
-            scope.launch {
-                try {
-                    val user = withContext(Dispatchers.IO) { AuthApi.login(email.trim(), pass) }
-                    withContext(Dispatchers.IO) {
-                        SessionStore(RailApp.instance).saveSession(user.name, user.email)
-                    }
-                    vm.userName = user.name
-                    vm.email = user.email
-                    vm.loggedIn = true
-                    onLogin()
-                } catch (e: UnverifiedException) {
-                    vm.email = e.email
-                    vm.otpEmailed = e.emailed
-                    vm.otpDisplayCode = e.displayCode
-                    onNeedVerify(e.email)
-                } catch (e: Exception) {
-                    error = friendlyNetError(e.message)
-                } finally {
+            vm.signIn(
+                idOrEmail = user.trim(),
+                password = pass,
+                onSuccess = {
                     busy = false
+                    onLogin()
+                },
+                onNeedVerify = { email ->
+                    busy = false
+                    vm.email = email
+                    onNeedVerify(email)
+                },
+                onError = {
+                    busy = false
+                    error = it
                 }
-            }
+            )
         }
-        TextButton(onClick = onRegister, modifier = Modifier.fillMaxWidth()) {
-            Text("New user? Register here", color = Orange)
+        TextButton(onClick = {
+            vm.startRegistration(impaired)
+            onRegister()
+        }, modifier = Modifier.fillMaxWidth()) {
+            Text("Register user?", color = Orange)
         }
         }
         }
+        Text(
+            "Academic demo inspired by the IRCTC account flow. Not an official railway login.",
+            color = Color.Gray,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(top = 12.dp)
+        )
     }
+    }
+    if (forgotOpen) {
+        AlertDialog(
+            onDismissRequest = { forgotOpen = false },
+            title = { Text("Forgot account details") },
+            text = {
+                Column {
+                    Text("Enter the registered email or mobile. This demo only shows the user ID on this device.", fontSize = 13.sp)
+                    Spacer(Modifier.height(8.dp))
+                    LabeledField("Email or mobile", forgotKey, keyboardType = KeyboardType.Email) { forgotKey = it }
+                    forgotInfo?.let { Text(it, color = Navy, fontSize = 14.sp, modifier = Modifier.padding(top = 8.dp)) }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.lookupUserId(forgotKey) { id ->
+                        forgotInfo = if (id.isNullOrBlank()) "No account matched on this device."
+                        else "Your user ID is $id"
+                    }
+                }) { Text("Find user ID", color = Orange) }
+            },
+            dismissButton = {
+                TextButton(onClick = { forgotOpen = false }) { Text("Close", color = Navy) }
+            }
+        )
     }
 }
 
